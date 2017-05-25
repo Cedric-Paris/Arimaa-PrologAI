@@ -31,9 +31,21 @@ get_moves([[[1,5],[2,5]],[[0,0],[1,0]],[[0,1],[0,0]],[[0,0],[0,1]]], Gamestate, 
 % get_enemy_by_type()
 % get_allies_by_type()
 % get_neigh()
-%get_empty_pos()
+% get_empty_pos()
 % get_empty_neigh()
 % get_movable_pieces()
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% FONCTIONS OUTILS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Debug
+debug_log([]):-write('-END-').
+debug_log([T|Q]):-writeln(T), debug_log(Q).
+
+% list_size(List, Size) --- Determine le nombre d'element dans une liste
+list_size([],0).
+list_size([_|Q], SIZE):-list_size(Q, R), SIZE is R + 1. 
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% PREDICATS / FONCTIONS DE BASE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -60,6 +72,11 @@ get_piece_by_pos([],_,_):-fail.
 get_piece_by_pos([R|_],[X,Y],R):-get_coord(R, [X,Y]),!.
 get_piece_by_pos([_|Q],[X,Y],R):-get_piece_by_pos(Q,[X,Y],R).
 
+% get_pieces_by_pos(Board, Coords, ResultPiece) --- Retourne la liste des pièces correspondant aux coordonnées si elles existent.
+get_pieces_by_pos(_,[],[]).
+get_pieces_by_pos(B, [T|Q], [R|PIECES]):-get_piece_by_pos(B, T, R), get_pieces_by_pos(B, Q, PIECES), !.
+get_pieces_by_pos(B, [_|Q], PIECES):-get_pieces_by_pos(B, Q, PIECES).
+
 % empty(Board, Coord) --- Renvoie vrai si la case de coordonnees Coord est vide
 empty(B, [X,Y]):- \+get_piece_by_pos(B, [X,Y], _).
 
@@ -69,11 +86,39 @@ enemy([_,_,_,gold]).
 % ally(Piece) --- Renvoie vrai si la piece est alliee
 ally([_,_,_,silver]).
 
+% ally_around(Board, Coord) --- Renvoie vrai si un allie est voisin de la case Coord
+ally_around(B, COORD):- get_neigh(COORD, N), get_allies(B, AL), get_pieces_by_pos(AL, N, R), list_size(R, SIZE), SIZE =\= 0. 
+
 % trap(Coord) --- Vrai si la case est une trape
 trap([2,2]).
 trap([2,5]).
 trap([5,2]).
 trap([5,5]).
+
+% force(Piece, Result) --- Donne la force d'une piece suivant son type
+force([_,_,rabbit,_], 0).
+force([_,_,cat,_], 1).
+force([_,_,dog,_], 2).
+force([_,_,horse,_], 3).
+force([_,_,camel,_], 4).
+force([_,_,elephant,_], 5).
+
+% stronger_than(Piece1, Piece2) --- Renvoie vrai si Piece1 est plus forte que Piece2
+stronger_than(P1, P2):-force(P1, F1), force(P2, F2), F1 > F2.
+
+% stronger_than_all(Piece, Other) --- Renvoie vrai si la piece est plus forte que toutes les autres
+stronger_than_all(_, []).
+stronger_than_all(P, [T|Q]):-stronger_than(P, T), stronger_than_all(P, Q).
+
+% get_enemies(Board, ResultList) --- Renvoie la liste des pieces enemies sur le plateau
+get_enemies([], []).
+get_enemies([T|Q], [T|OTHERS]):-enemy(T), get_enemies(Q, OTHERS), !.
+get_enemies([_|Q], OTHERS):-get_enemies(Q, OTHERS).
+
+% get_allies(Board, ResultList) --- Renvoie la liste des pieces alliees sur le plateau
+get_allies([], []).
+get_allies([T|Q], [T|OTHERS]):-ally(T), get_allies(Q, OTHERS), !.
+get_allies([_|Q], OTHERS):-get_allies(Q, OTHERS).
 
 % get_enemy_by_type(Board, Type, ResultList) --- Renvoie la liste des pieces enemies de type TYPE
 get_enemy_by_type([],_,[]).
@@ -104,6 +149,25 @@ get_empty_pos(_, [], []).
 get_empty_pos(B, [T|Q], [T|R]):-empty(B, T), get_empty_pos(B, Q, R),!.
 get_empty_pos(B, [_|Q], R):-get_empty_pos(B, Q, R).
 
+% get_empty_neigh(Board, Coord, ResultList) --- Renvoie la liste des voisins vide pour une case de coordonnees Coord
+get_empty_neigh(B, [X,Y], R):-get_neigh([X,Y], N), get_empty_pos(B, N, R).
+
+% get_movable_pieces(Board, Pieces, ResultList) --- Renvoie la liste des pieces alliees qui peuvent bouger.
+get_movable_pieces(_, [], []).
+% ------On passe les pieces ennemies
+get_movable_pieces(B, [T|Q], R):-enemy(T), get_movable_pieces(B, Q, R), !.
+% ------Cas entouré de pieces
+get_movable_pieces(B, [T|Q], R):-get_coord(T, COORD), get_empty_neigh(B, COORD, N), list_size(N, SIZE), SIZE =:= 0, get_movable_pieces(B, Q, R), !.
+% ------Cas ou il y a un allie autour
+get_movable_pieces(B, [T|Q], [T|R]):-get_coord(T, COORD), ally_around(B, COORD), get_movable_pieces(B, Q, R), !.
+% ------Cas ou on est plus fort que tous les enemies
+get_movable_pieces(B, [T|Q], [T|R]):-get_coord(T, COORD), get_neigh(COORD, N), get_enemies(B, EN), get_pieces_by_pos(EN, N, ENN), stronger_than_all(T, ENN), get_movable_pieces(B, Q, R), !. 
+% ------Autres cas: non deplacable
+get_movable_pieces(B, [_|Q], R):-get_movable_pieces(B, Q, R), !.
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% FONCTIONS DE L'IA %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % IA
 % Si mouvement gagnant -> jouer.
