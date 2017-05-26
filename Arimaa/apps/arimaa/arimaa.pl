@@ -62,6 +62,8 @@ append_element_to_all(E, [T|Q], [[E|[T]]|R]):-append_element_to_all(E, Q, R).
 add_sub_list([],[]).
 add_sub_list([T|Q],[[T]|R]):-add_sub_list(Q,R).
 
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% PREDICATS / FONCTIONS DE BASE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % get_x --- Renvoie l'absisse a partir d'une piece ou de coordonnees
@@ -184,17 +186,47 @@ get_movable_pieces(B, [_|Q], R):-get_movable_pieces(B, Q, R), !.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% FONCTIONS DE L'IA %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% Action pattern : [SCORE, DEPTH, [ [ACTION1] [ACTION2] ]]
-%get_basic_move_actions(B, [X,Y], D, R).
 
+% get_basic_move_actions_by_depth(Board, StartCoord, Depth, Result) --- Recherche tous les deplacement possible jusqu'a une profondeur donnee : profondeur=1 --> deplacements de 1 case
 get_basic_move_actions_by_depth(_,_,0,[]):-!.
 get_basic_move_actions_by_depth(B, COORD, DEPTH, R):-get_basic_move_actions(B, COORD, N, ACTIONS), D is DEPTH-1, basic_move_foreach_neigh(B, COORD, D, N, NACT), concat(ACTIONS,NACT,R).
+
+% get_basic_move_actions(Board, StartCoord, Voisins, Result) --- Renvoie les voisins accessibles et les deplacements possibles de 1 case max
 get_basic_move_actions(B, COORD, NEIGH, R):-get_empty_neigh(B, COORD, NEIGH), add_sub_list(NEIGH, SN), append_element_to_all(COORD, SN, ACTIONS), add_sub_list(ACTIONS, R).
+
+% basic_move_foreach_neigh(Board, StartCoord, Depth, NeighList, Resultat) --- Utilisee par get_basic_move_actions_by_depth, renvoie tous les deplacements possible a partir des voisins.
 basic_move_foreach_neigh(_,_,_,[],[]).
-basic_move_foreach_neigh(B, COORD, D, [T|Q], R):-get_basic_move_actions_by_depth(B, T, D, ACTIONS), append_element_to_all([COORD,T], ACTIONS, NACT), basic_move_foreach_neigh(B, COORD, D, Q, OTHERS), concat(NACT, OTHERS, R).
+basic_move_foreach_neigh(B, COORD, D, [T|Q], R):-move_piece(B, COORD, T, NB), get_basic_move_actions_by_depth(NB, T, D, ACTIONS), append_element_to_all([COORD,T], ACTIONS, NACT), basic_move_foreach_neigh(B, COORD, D, Q, OTHERS), concat(NACT, OTHERS, R).
+
+% move_piece(Board, InitPos, NewPos, NewBoard) --- Deplace la piece a la position InitPos a la position NewPos
+move_piece([[X,Y,T,S]|Q], [X,Y], [NX,NY], [[NX,NY,T,S]|Q]):-!.
+move_piece([T|Q], ICOORD, NCOORD, [T|R]):-move_piece(Q, ICOORD, NCOORD, R).
 
 
 
-% IA
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS 
+
+looping(_,[]).
+looping(B,[T|Q]):-get_coord(T, C), get_basic_move_actions_by_depth(B,C,4,R), debug_log(R), looping(B,Q).
+
+/*
+bot:get_basic_move_actions_by_depth([[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],[1,0],4,R), bot:debug_log(R).
+
+%LISTER TOUTE LES ACTIONS
+bot:get_movable_pieces([[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],[[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],R), bot:looping([[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],R).
+
+
+*/
+
+
+/*******
+*  IA  *
+*******/
+
 % Si mouvement gagnant -> jouer.
 % Si tuer enemie -> tuer.
 % Poser elephant a cote d'un piege
