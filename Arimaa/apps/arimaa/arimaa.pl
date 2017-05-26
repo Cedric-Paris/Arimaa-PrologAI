@@ -188,16 +188,11 @@ get_movable_pieces(B, [_|Q], R):-get_movable_pieces(B, Q, R), !.
 
 get_basic_move_actions_by_depth(_,_,0,[]):-!.
 get_basic_move_actions_by_depth(B, COORD, DEPTH, R):-get_basic_move_actions(B, COORD, N, ACTIONS), D is DEPTH-1, basic_move_foreach_neigh(B, COORD, D, N, NACT), concat(ACTIONS,NACT,R).
-get_basic_move_actions(B, COORD, NEIGH, R):-get_empty_neigh(B, COORD, NEIGH), add_sub_list(NEIGH, SN), append_element_to_all(COORD, SN, R).
+get_basic_move_actions(B, COORD, NEIGH, R):-get_empty_neigh(B, COORD, NEIGH), add_sub_list(NEIGH, SN), append_element_to_all(COORD, SN, ACTIONS), add_sub_list(ACTIONS, R).
 basic_move_foreach_neigh(_,_,_,[],[]).
 basic_move_foreach_neigh(B, COORD, D, [T|Q], R):-get_basic_move_actions_by_depth(B, T, D, ACTIONS), append_element_to_all([COORD,T], ACTIONS, NACT), basic_move_foreach_neigh(B, COORD, D, Q, OTHERS), concat(NACT, OTHERS, R).
 
 
-
-
-get_all_basic_move_actions()
-test(B, COORD, [T|Q], DEPTH, [LACTIONS|R]):-get_basic_move_actions(B, T, ACTIONS), append_element_to_all([COORD,T], ACTIONS, LACTIONS), test(B, COORD, Q, DEPTH, R).
-[ [[0, 0], [3, 3]], [[0, 0], [2, 4]], [[0, 0], [3, 5]], [[0, 0], [4, 4]] ]
 
 % IA
 % Si mouvement gagnant -> jouer.
