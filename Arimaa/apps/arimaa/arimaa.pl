@@ -17,7 +17,6 @@
 % default call
 get_moves([[[1,5],[2,5]],[[0,0],[1,0]],[[0,1],[0,0]],[[0,0],[0,1]]], Gamestate, Board).
 
-
 % get_x()
 % get_y()
 % get_coord()
@@ -42,11 +41,26 @@ get_moves([[[1,5],[2,5]],[[0,0],[1,0]],[[0,1],[0,0]],[[0,0],[0,1]]], Gamestate, 
 debug_log([]):-write('-END-').
 debug_log([T|Q]):-writeln(T), debug_log(Q).
 
+% list(E) --- vrai si E est une liste
+list([]).
+list([_|_]).
+
 % list_size(List, Size) --- Determine le nombre d'element dans une liste
 list_size([],0).
 list_size([_|Q], SIZE):-list_size(Q, R), SIZE is R + 1. 
 
+% concat(List1, List2, List12) --- Concat deux listes
+concat([], L, L).
+concat([T|Q], L, [T|R]):-concat(Q,L,R).
 
+% append_element_to_all(Element, List, ResultList) --- Ajoute un element a tous les elements de la liste : append(1, [1,2]) --> [ [1,1] , [1,2] ]
+append_element_to_all(_, [], []).
+append_element_to_all(E, [T|Q], [[E|T]|R]):-list(T), append_element_to_all(E, Q, R), !.
+append_element_to_all(E, [T|Q], [[E|[T]]|R]):-append_element_to_all(E, Q, R).
+
+% add_sub_list(List, ResultList) --- imbrique chaque element dans une sous liste : [1,2,3] --> [ [1], [2], [3] ]
+add_sub_list([],[]).
+add_sub_list([T|Q],[[T]|R]):-add_sub_list(Q,R).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% PREDICATS / FONCTIONS DE BASE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -168,6 +182,22 @@ get_movable_pieces(B, [_|Q], R):-get_movable_pieces(B, Q, R), !.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% FONCTIONS DE L'IA %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% Action pattern : [SCORE, DEPTH, [ [ACTION1] [ACTION2] ]]
+%get_basic_move_actions(B, [X,Y], D, R).
+
+get_basic_move_actions_by_depth(_,_,0,[]):-!.
+get_basic_move_actions_by_depth(B, COORD, DEPTH, R):-get_basic_move_actions(B, COORD, N, ACTIONS), D is DEPTH-1, basic_move_foreach_neigh(B, COORD, D, N, NACT), concat(ACTIONS,NACT,R).
+get_basic_move_actions(B, COORD, NEIGH, R):-get_empty_neigh(B, COORD, NEIGH), add_sub_list(NEIGH, SN), append_element_to_all(COORD, SN, R).
+basic_move_foreach_neigh(_,_,_,[],[]).
+basic_move_foreach_neigh(B, COORD, D, [T|Q], R):-get_basic_move_actions_by_depth(B, T, D, ACTIONS), append_element_to_all([COORD,T], ACTIONS, NACT), basic_move_foreach_neigh(B, COORD, D, Q, OTHERS), concat(NACT, OTHERS, R).
+
+
+
+
+get_all_basic_move_actions()
+test(B, COORD, [T|Q], DEPTH, [LACTIONS|R]):-get_basic_move_actions(B, T, ACTIONS), append_element_to_all([COORD,T], ACTIONS, LACTIONS), test(B, COORD, Q, DEPTH, R).
+[ [[0, 0], [3, 3]], [[0, 0], [2, 4]], [[0, 0], [3, 5]], [[0, 0], [4, 4]] ]
 
 % IA
 % Si mouvement gagnant -> jouer.
