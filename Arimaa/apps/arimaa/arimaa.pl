@@ -103,7 +103,12 @@ enemy([_,_,_,gold]).
 ally([_,_,_,silver]).
 
 % ally_around(Board, Coord) --- Renvoie vrai si un allie est voisin de la case Coord
-ally_around(B, COORD):- get_neigh(COORD, N), get_allies(B, AL), get_pieces_by_pos(AL, N, R), list_size(R, SIZE), SIZE =\= 0. 
+ally_around(B, COORD):-
+      get_neigh(COORD, N),
+      get_allies(B, AL),
+      get_pieces_by_pos(AL, N, R),
+      list_size(R, SIZE),
+      SIZE =\= 0. 
 
 % trap(Coord) --- Vrai si la case est une trape
 trap([2,2]).
@@ -173,11 +178,28 @@ get_movable_pieces(_, [], []).
 % ------On passe les pieces ennemies
 get_movable_pieces(B, [T|Q], R):-enemy(T), get_movable_pieces(B, Q, R), !.
 % ------Cas entouré de pieces
-get_movable_pieces(B, [T|Q], R):-get_coord(T, COORD), get_empty_neigh(B, COORD, N), list_size(N, SIZE), SIZE =:= 0, get_movable_pieces(B, Q, R), !.
+get_movable_pieces(B, [T|Q], R):-
+      get_coord(T, COORD),
+      get_empty_neigh(B, COORD, N),
+      list_size(N, SIZE),
+      SIZE =:= 0,
+      get_movable_pieces(B, Q, R),
+      !.
 % ------Cas ou il y a un allie autour
-get_movable_pieces(B, [T|Q], [T|R]):-get_coord(T, COORD), ally_around(B, COORD), get_movable_pieces(B, Q, R), !.
+get_movable_pieces(B, [T|Q], [T|R]):-
+      get_coord(T, COORD),
+      ally_around(B, COORD),
+      get_movable_pieces(B, Q, R),
+      !.
 % ------Cas ou on est plus fort que tous les enemies
-get_movable_pieces(B, [T|Q], [T|R]):-get_coord(T, COORD), get_neigh(COORD, N), get_enemies(B, EN), get_pieces_by_pos(EN, N, ENN), stronger_than_all(T, ENN), get_movable_pieces(B, Q, R), !. 
+get_movable_pieces(B, [T|Q], [T|R]):-
+      get_coord(T, COORD),
+      get_neigh(COORD, N),
+      get_enemies(B, EN),
+      get_pieces_by_pos(EN, N, ENN),
+      stronger_than_all(T, ENN),
+      get_movable_pieces(B, Q, R),
+      !. 
 % ------Autres cas: non deplacable
 get_movable_pieces(B, [_|Q], R):-get_movable_pieces(B, Q, R), !.
 
@@ -189,16 +211,29 @@ get_movable_pieces(B, [_|Q], R):-get_movable_pieces(B, Q, R), !.
 
 % get_basic_move_actions_by_depth(Board, StartCoord, Depth, Result) --- Recherche tous les deplacement possible jusqu'a une profondeur donnee : profondeur=1 --> deplacements de 1 case
 get_basic_move_actions_by_depth(_,_,0,[]):-!.
-get_basic_move_actions_by_depth(B, COORD, DEPTH, R):-get_basic_move_actions(B, COORD, N, ACTIONS), D is DEPTH-1, basic_move_foreach_neigh(B, COORD, D, N, NACT), concat(ACTIONS,NACT,R).
+get_basic_move_actions_by_depth(B, COORD, DEPTH, R):-
+      get_basic_move_actions(B, COORD, N, ACTIONS),
+      D is DEPTH-1,
+      basic_move_foreach_neigh(B, COORD, D, N, NACT),
+      concat(ACTIONS,NACT,R).
 
 % get_basic_move_actions(Board, StartCoord, Voisins, Result) --- Renvoie les voisins accessibles et les deplacements possibles de 1 case max
-get_basic_move_actions(B, COORD, NEIGH, R):-get_empty_neigh(B, COORD, NEIGH), add_sub_list(NEIGH, SN), append_element_to_all(COORD, SN, ACTIONS), add_sub_list(ACTIONS, R).
+get_basic_move_actions(B, COORD, NEIGH, R):-
+      get_empty_neigh(B, COORD, NEIGH),
+      add_sub_list(NEIGH, SN),
+      append_element_to_all(COORD, SN, ACTIONS),
+      add_sub_list(ACTIONS, R).
 
 % basic_move_foreach_neigh(Board, StartCoord, Depth, NeighList, Resultat) --- Utilisee par get_basic_move_actions_by_depth, renvoie tous les deplacements possible a partir des voisins.
 basic_move_foreach_neigh(_,_,_,[],[]).
-basic_move_foreach_neigh(B, COORD, D, [T|Q], R):-move_piece(B, COORD, T, NB), get_basic_move_actions_by_depth(NB, T, D, ACTIONS), append_element_to_all([COORD,T], ACTIONS, NACT), basic_move_foreach_neigh(B, COORD, D, Q, OTHERS), concat(NACT, OTHERS, R).
+basic_move_foreach_neigh(B, COORD, D, [T|Q], R):-
+      move_piece(B, COORD, T, NB),
+      get_basic_move_actions_by_depth(NB, T, D, ACTIONS),
+      append_element_to_all([COORD,T], ACTIONS, NACT),
+      basic_move_foreach_neigh(B, COORD, D, Q, OTHERS),
+      concat(NACT, OTHERS, R).
 
-% move_piece(Board, InitPos, NewPos, NewBoard) --- Deplace la piece a la position InitPos a la position NewPos
+% move_piece(Board, InitPos, NewPos, NewBoard) --- Deplace une piece de la position InitPos a la position NewPos
 move_piece([[X,Y,T,S]|Q], [X,Y], [NX,NY], [[NX,NY,T,S]|Q]):-!.
 move_piece([T|Q], ICOORD, NCOORD, [T|R]):-move_piece(Q, ICOORD, NCOORD, R).
 
