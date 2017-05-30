@@ -17,22 +17,6 @@
 % default call
 get_moves([[[1,5],[2,5]],[[0,0],[1,0]],[[0,1],[0,0]],[[0,0],[0,1]]], Gamestate, Board).
 
-% get_x()
-% get_y()
-% get_coord()
-% get_type()
-% get_piece_side()
-% get_piece_by_pos()
-% empty()
-% enemy() -> isEnemy
-% ally() -> isAllied
-% trap() -> isTrap
-% get_enemy_by_type()
-% get_allies_by_type()
-% get_neigh()
-% get_empty_pos()
-% get_empty_neigh()
-% get_movable_pieces()
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% FONCTIONS OUTILS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -96,19 +80,28 @@ get_pieces_by_pos(B, [_|Q], PIECES):-get_pieces_by_pos(B, Q, PIECES).
 % empty(Board, Coord) --- Renvoie vrai si la case de coordonnees Coord est vide
 empty(B, [X,Y]):- \+get_piece_by_pos(B, [X,Y], _).
 
-% enemy(Piece) --- Renvoie vrai si la piece appartient a l'ennemie'
+% enemy(Piece) --- Renvoie vrai si la piece appartient a l'ennemi
 enemy([_,_,_,gold]).
+
+% enemy_around(Board, Coord) --- Renvoie vrai si un ennemi est voisin de la case Coord
+enemy_around(B, COORD):-get_neigh(COORD, NEIGHLIST),
+                        get_enemies(B, ENLIST),
+                        get_pieces_by_pos(ENLIST, NEIGHLIST, R),
+                        list_size(R, SIZE),
+                        SIZE =\= 0.
+
+% are_enemy(Piece1, Piece2) --- Renvoie vrai si les deux pièces sont dans des camps opposes
+are_enemy(P1, P2):-get_piece_side(P1, S1), get_piece_side(P2, S2), dif(S1,S2). 
 
 % ally(Piece) --- Renvoie vrai si la piece est alliee
 ally([_,_,_,silver]).
 
 % ally_around(Board, Coord) --- Renvoie vrai si un allie est voisin de la case Coord
-ally_around(B, COORD):-
-      get_neigh(COORD, N),
-      get_allies(B, AL),
-      get_pieces_by_pos(AL, N, R),
-      list_size(R, SIZE),
-      SIZE =\= 0. 
+ally_around(B, COORD):- get_neigh(COORD, NEIGHLIST),
+                        get_allies(B, ALLIST),
+                        get_pieces_by_pos(ALLIST, NEIGHLIST, R),
+                        list_size(R, SIZE),
+                        SIZE =\= 0.
 
 % trap(Coord) --- Vrai si la case est une trape
 trap([2,2]).
@@ -173,35 +166,32 @@ get_empty_pos(B, [_|Q], R):-get_empty_pos(B, Q, R).
 % get_empty_neigh(Board, Coord, ResultList) --- Renvoie la liste des voisins vide pour une case de coordonnees Coord
 get_empty_neigh(B, [X,Y], R):-get_neigh([X,Y], N), get_empty_pos(B, N, R).
 
-% get_movable_pieces(Board, Pieces, ResultList) --- Renvoie la liste des pieces alliees qui peuvent bouger.
-get_movable_pieces(_, [], []).
-% ------On passe les pieces ennemies
-get_movable_pieces(B, [T|Q], R):-enemy(T), get_movable_pieces(B, Q, R), !.
+% get_movable_allied_pieces(Board, Pieces, ResultList) --- Renvoie la liste des pieces alliees qui peuvent bouger.
+get_movable_allied_pieces(_, [], []).
+get_movable_allied_pieces(B, [T|Q], [T|R]) :- ally(T),
+                                              movable_piece(B,T),
+                                              get_movable_allied_pieces(B, Q, R), !.
+get_movable_allied_pieces(B, [_|Q], R) :- get_movable_allied_pieces(B, Q, R), !.
+
+% movable_piece(Board, Piece) --- Indique si une piece est deplacable
 % ------Cas entouré de pieces
-get_movable_pieces(B, [T|Q], R):-
-      get_coord(T, COORD),
-      get_empty_neigh(B, COORD, N),
-      list_size(N, SIZE),
-      SIZE =:= 0,
-      get_movable_pieces(B, Q, R),
-      !.
+movable_piece(B, P):- get_coord(P, COORD),
+                        get_empty_neigh(B, COORD, LISTNEIGH),
+                        list_size(LISTNEIGH, SIZE),
+                        SIZE =:= 0, !, fail.
 % ------Cas ou il y a un allie autour
-get_movable_pieces(B, [T|Q], [T|R]):-
-      get_coord(T, COORD),
-      ally_around(B, COORD),
-      get_movable_pieces(B, Q, R),
-      !.
+movable_piece(B, P):- enemy(P),
+                        get_coord(P, COORD),
+                        enemy_around(B, COORD), !.
+movable_piece(B, P):- ally(P),
+                        get_coord(P, COORD),
+                        ally_around(B, COORD), !.
 % ------Cas ou on est plus fort que tous les enemies
-get_movable_pieces(B, [T|Q], [T|R]):-
-      get_coord(T, COORD),
-      get_neigh(COORD, N),
-      get_enemies(B, EN),
-      get_pieces_by_pos(EN, N, ENN),
-      stronger_than_all(T, ENN),
-      get_movable_pieces(B, Q, R),
-      !. 
-% ------Autres cas: non deplacable
-get_movable_pieces(B, [_|Q], R):-get_movable_pieces(B, Q, R), !.
+movable_piece(B, P):- get_coord(P, COORD),
+                        get_neigh(COORD, LISTNEIGH),
+                        get_pieces_by_pos(B, LISTNEIGH, NEIGHPIECES),
+                        stronger_than_all(P, NEIGHPIECES), !.
+
 
 
 
@@ -211,31 +201,32 @@ get_movable_pieces(B, [_|Q], R):-get_movable_pieces(B, Q, R), !.
 
 % get_basic_move_actions_by_depth(Board, StartCoord, Depth, Result) --- Recherche tous les deplacement possible jusqu'a une profondeur donnee : profondeur=1 --> deplacements de 1 case
 get_basic_move_actions_by_depth(_,_,0,[]):-!.
-get_basic_move_actions_by_depth(B, COORD, DEPTH, R):-
-      get_basic_move_actions(B, COORD, N, ACTIONS),
-      D is DEPTH-1,
-      basic_move_foreach_neigh(B, COORD, D, N, NACT),
-      concat(ACTIONS,NACT,R).
+get_basic_move_actions_by_depth(B, COORD, DEPTH, R):- get_basic_move_actions(B, COORD, N, ACTIONS),
+                                                      D is DEPTH-1,
+                                                      basic_move_foreach_neigh(B, COORD, D, N, NACT),
+                                                      concat(ACTIONS,NACT,R).
 
 % get_basic_move_actions(Board, StartCoord, Voisins, Result) --- Renvoie les voisins accessibles et les deplacements possibles de 1 case max
-get_basic_move_actions(B, COORD, NEIGH, R):-
-      get_empty_neigh(B, COORD, NEIGH),
-      add_sub_list(NEIGH, SN),
-      append_element_to_all(COORD, SN, ACTIONS),
-      add_sub_list(ACTIONS, R).
+get_basic_move_actions(B, COORD, NEIGH, R):-get_empty_neigh(B, COORD, NEIGH),
+                                            add_sub_list(NEIGH, SN),
+                                            append_element_to_all(COORD, SN, ACTIONS),
+                                            add_sub_list(ACTIONS, R).
 
 % basic_move_foreach_neigh(Board, StartCoord, Depth, NeighList, Resultat) --- Utilisee par get_basic_move_actions_by_depth, renvoie tous les deplacements possible a partir des voisins.
 basic_move_foreach_neigh(_,_,_,[],[]).
-basic_move_foreach_neigh(B, COORD, D, [T|Q], R):-
-      move_piece(B, COORD, T, NB),
-      get_basic_move_actions_by_depth(NB, T, D, ACTIONS),
-      append_element_to_all([COORD,T], ACTIONS, NACT),
-      basic_move_foreach_neigh(B, COORD, D, Q, OTHERS),
-      concat(NACT, OTHERS, R).
+basic_move_foreach_neigh(B, COORD, D, [T|Q], R):- move_piece(B, COORD, T, NEWB),
+                                                  get_piece_by_pos(NEWB, T, PIECE),
+                                                  movable_piece(NEWB, PIECE),
+                                                  get_basic_move_actions_by_depth(NEWB, T, D, ACTIONS),
+                                                  append_element_to_all([COORD,T], ACTIONS, NACT),
+                                                  basic_move_foreach_neigh(B, COORD, D, Q, OTHERS),
+                                                  concat(NACT, OTHERS, R), !.
+basic_move_foreach_neigh(B, COORD, D, [T|Q], R):-basic_move_foreach_neigh(B, COORD, D, Q, R).
 
-% move_piece(Board, InitPos, NewPos, NewBoard) --- Deplace une piece de la position InitPos a la position NewPos
+% move_piece(Board, InitPos, NewPos, NewBoard) --- Deplace la piece a la position InitPos a la position NewPos
 move_piece([[X,Y,T,S]|Q], [X,Y], [NX,NY], [[NX,NY,T,S]|Q]):-!.
 move_piece([T|Q], ICOORD, NCOORD, [T|R]):-move_piece(Q, ICOORD, NCOORD, R).
+
 
 
 
@@ -252,7 +243,7 @@ looping(B,[T|Q]):-get_coord(T, C), get_basic_move_actions_by_depth(B,C,4,R), deb
 bot:get_basic_move_actions_by_depth([[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],[1,0],4,R), bot:debug_log(R).
 
 %LISTER TOUTE LES ACTIONS
-bot:get_movable_pieces([[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],[[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],R), bot:looping([[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],R).
+bot:get_movable_allied_pieces([[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],[[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],R), bot:looping([[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],R).
 
 
 */
