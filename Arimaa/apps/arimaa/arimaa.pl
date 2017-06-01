@@ -15,8 +15,8 @@
 % get_moves(Moves, [silver, []], [[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]]).
 
 % default call
-get_moves([[[1,5],[2,5]],[[0,0],[1,0]],[[0,1],[0,0]],[[0,0],[0,1]]], Gamestate, Board).
-
+%get_moves([[[1,5],[2,5]],[[0,0],[1,0]],[[0,1],[0,0]],[[0,0],[0,1]]], Gamestate, Board).
+get_moves(ACTION, GS, B):- get_movable_allied_pieces(B, B, [ALLY|OTHER]), get_coord(ALLY, COORD), get_basic_move_actions_by_depth(B, COORD, 4, [ACTION|Q]).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% FONCTIONS OUTILS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -109,6 +109,10 @@ trap([2,5]).
 trap([5,2]).
 trap([5,5]).
 
+% dead_piece(Board, Piece) --- Vrai si la piece est une piece qui va tomber (Au dessus d'une trappe sans voisin)
+dead_piece(B, [X,Y,_,SIDE]):- trap([X,Y]), enemy([X,Y,_,SIDE]), \+enemy_around(B, [X,Y]).
+dead_piece(B, [X,Y,_,SIDE]):- trap([X,Y]), ally([X,Y,_,SIDE]), \+ally_around(B, [X,Y]).
+
 % force(Piece, Result) --- Donne la force d'une piece suivant son type
 force([_,_,rabbit,_], 0).
 force([_,_,cat,_], 1).
@@ -117,12 +121,12 @@ force([_,_,horse,_], 3).
 force([_,_,camel,_], 4).
 force([_,_,elephant,_], 5).
 
-% stronger_than(Piece1, Piece2) --- Renvoie vrai si Piece1 est plus forte que Piece2
-stronger_than(P1, P2):-force(P1, F1), force(P2, F2), F1 > F2.
+% stronger_or_eq_than(Piece1, Piece2) --- Renvoie vrai si Piece1 est plus ou aussi forte que Piece2
+stronger_or_eq_than(P1, P2):-force(P1, F1), force(P2, F2), F1 >= F2.
 
-% stronger_than_all(Piece, Other) --- Renvoie vrai si la piece est plus forte que toutes les autres
-stronger_than_all(_, []).
-stronger_than_all(P, [T|Q]):-stronger_than(P, T), stronger_than_all(P, Q).
+% stronger_or_eq_than_all(Piece, Other) --- Renvoie vrai si la piece est plus ou aussi forte que toutes les autres
+stronger_or_eq_than_all(_, []).
+stronger_or_eq_than_all(P, [T|Q]):-stronger_or_eq_than(P, T), stronger_or_eq_than_all(P, Q).
 
 % get_enemies(Board, ResultList) --- Renvoie la liste des pieces enemies sur le plateau
 get_enemies([], []).
@@ -179,6 +183,18 @@ movable_piece(B, P):- get_coord(P, COORD),
                         get_empty_neigh(B, COORD, LISTNEIGH),
                         list_size(LISTNEIGH, SIZE),
                         SIZE =:= 0, !, fail.
+movable_piece(B, P):- get_type(P,rabbit),      %Le lapin ne peut qu'avancer (silver)
+                      get_piece_side(P, silver),
+                      get_coord(P, [X,Y]),
+                      get_empty_neigh(B, COORD, [[NX,_]]),
+                      NX is X - 1,
+                      !, fail.
+movable_piece(B, P):- get_type(P, rabbit),      %Le lapin ne peut qu'avancer (gold)
+                      get_piece_side(P, gold),
+                      get_coord(P, [X,Y]),
+                      get_empty_neigh(B, COORD, [[NX,_]]),
+                      NX is X + 1,
+                      !, fail.
 % ------Cas ou il y a un allie autour
 movable_piece(B, P):- enemy(P),
                         get_coord(P, COORD),
@@ -190,7 +206,7 @@ movable_piece(B, P):- ally(P),
 movable_piece(B, P):- get_coord(P, COORD),
                         get_neigh(COORD, LISTNEIGH),
                         get_pieces_by_pos(B, LISTNEIGH, NEIGHPIECES),
-                        stronger_than_all(P, NEIGHPIECES), !.
+                        stronger_or_eq_than_all(P, NEIGHPIECES), !.
 
 
 
@@ -198,6 +214,12 @@ movable_piece(B, P):- get_coord(P, COORD),
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% FONCTIONS DE L'IA %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% Action pattern : [SCORE, DEPTH, [ [ACTION1] [ACTION2] ]]
+
+% delete_disallowed_neigh_for_rabbit(Coord, Neigh, ResultList) --- Supprime le voisin interdit pour un lapin
+delete_disallowed_neigh_for_rabbit(_,[],[]).
+delete_disallowed_neigh_for_rabbit([X,Y,rabbit,silver], [[NX,Y]|Q], Q):- NX is X - 1, !.
+delete_disallowed_neigh_for_rabbit([X,Y,rabbit,gold], [[NX,Y]|Q], Q):- NX is X + 1, !.
+delete_disallowed_neigh_for_rabbit(P, [T|Q], [T|R]):- delete_disallowed_neigh_for_rabbit(P,Q,R).
 
 % get_basic_move_actions_by_depth(Board, StartCoord, Depth, Result) --- Recherche tous les deplacement possible jusqu'a une profondeur donnee : profondeur=1 --> deplacements de 1 case
 get_basic_move_actions_by_depth(_,_,0,[]):-!.
@@ -207,6 +229,13 @@ get_basic_move_actions_by_depth(B, COORD, DEPTH, R):- get_basic_move_actions(B, 
                                                       concat(ACTIONS,NACT,R).
 
 % get_basic_move_actions(Board, StartCoord, Voisins, Result) --- Renvoie les voisins accessibles et les deplacements possibles de 1 case max
+get_basic_move_actions(B, COORD, NEIGH, R):-get_empty_neigh(B, COORD, UNSURENEIGH),
+                                            get_piece_by_pos(B, COORD, P),
+                                            delete_disallowed_neigh_for_rabbit(P, UNSURENEIGH, NEIGH),
+                                            !,
+                                            add_sub_list(NEIGH, SN),
+                                            append_element_to_all(COORD, SN, ACTIONS),
+                                            add_sub_list(ACTIONS, R).
 get_basic_move_actions(B, COORD, NEIGH, R):-get_empty_neigh(B, COORD, NEIGH),
                                             add_sub_list(NEIGH, SN),
                                             append_element_to_all(COORD, SN, ACTIONS),
@@ -217,6 +246,7 @@ basic_move_foreach_neigh(_,_,_,[],[]).
 basic_move_foreach_neigh(B, COORD, D, [T|Q], R):- move_piece(B, COORD, T, NEWB),
                                                   get_piece_by_pos(NEWB, T, PIECE),
                                                   movable_piece(NEWB, PIECE),
+                                                  \+dead_piece(NEWB, PIECE),
                                                   get_basic_move_actions_by_depth(NEWB, T, D, ACTIONS),
                                                   append_element_to_all([COORD,T], ACTIONS, NACT),
                                                   basic_move_foreach_neigh(B, COORD, D, Q, OTHERS),
@@ -245,6 +275,8 @@ bot:get_basic_move_actions_by_depth([[0,0,rabbit,silver],[0,1,rabbit,silver],[0,
 %LISTER TOUTE LES ACTIONS
 bot:get_movable_allied_pieces([[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],[[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],R), bot:looping([[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],R).
 
+bot:get_movable_allied_pieces([[0,0,cat,silver],[0,1,elephant,gold],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,horse,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,elephant,silver],[1,1,dog,gold],[1,2,camel,silver],[1,3,rabbit,silver],[1,4,rabbit,silver],[1,5,horse,gold],[1,6,dog,silver],[1,7,dog,silver],[2,0,rabbit,silver],[2,1,cat,gold],[2,2,rabbit,silver],[2,3,rabbit,gold],[2,4,rabbit,gold],[2,6,rabbit,gold],[2,7,camel,gold],[3,0,rabbit,silver],[4,3,rabbit,gold],[4,7,horse,gold],[5,4,rabbit,gold],[6,0,rabbit,gold],[7,0,cat,gold],[7,3,dog,gold],[7,4,rabbit,gold],[7,5,rabbit,gold]],[[0,0,cat,silver],[0,1,elephant,gold],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,horse,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,elephant,silver],[1,1,dog,gold],[1,2,camel,silver],[1,3,rabbit,silver],[1,4,rabbit,silver],[1,5,horse,gold],[1,6,dog,silver],[1,7,dog,silver],[2,0,rabbit,silver],[2,1,cat,gold],[2,2,rabbit,silver],[2,3,rabbit,gold],[2,4,rabbit,gold],[2,6,rabbit,gold],[2,7,camel,gold],[3,0,rabbit,silver],[4,3,rabbit,gold],[4,7,horse,gold],[5,4,rabbit,gold],[6,0,rabbit,gold],[7,0,cat,gold],[7,3,dog,gold],[7,4,rabbit,gold],[7,5,rabbit,gold]],R), bot:looping([[0,0,cat,silver],[0,1,elephant,gold],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,horse,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,elephant,silver],[1,1,dog,gold],[1,2,camel,silver],[1,3,rabbit,silver],[1,4,rabbit,silver],[1,5,horse,gold],[1,6,dog,silver],[1,7,dog,silver],[2,0,rabbit,silver],[2,1,cat,gold],[2,2,rabbit,silver],[2,3,rabbit,gold],[2,4,rabbit,gold],[2,6,rabbit,gold],[2,7,camel,gold],[3,0,rabbit,silver],[4,3,rabbit,gold],[4,7,horse,gold],[5,4,rabbit,gold],[6,0,rabbit,gold],[7,0,cat,gold],[7,3,dog,gold],[7,4,rabbit,gold],[7,5,rabbit,gold]],R).
+loopin
 
 */
 
