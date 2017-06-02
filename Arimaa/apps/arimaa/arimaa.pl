@@ -16,7 +16,8 @@
 
 % default call
 %get_moves([[[1,5],[2,5]],[[0,0],[1,0]],[[0,1],[0,0]],[[0,0],[0,1]]], Gamestate, Board).
-get_moves(ACTION, GS, B):- get_movable_allied_pieces(B, B, [ALLY|OTHER]), get_coord(ALLY, COORD), get_basic_move_actions_by_depth(B, COORD, 4, [ACTION|Q]).
+%get_moves(ACTION, GS, B):- get_movable_allied_pieces(B, B, [ALLY|OTHER]), get_coord(ALLY, COORD), get_basic_move_actions_by_depth(B, COORD, 4, [ACTION|Q]).
+get_moves(ACTION, GS, B):- get_movable_allied_pieces(B, B, ALLIES), get_all_actions(B, ALLIES, 4, ACTS), get_best_action(B, ACTS, _, ACTION).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% FONCTIONS OUTILS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -35,7 +36,7 @@ list_size([_|Q], SIZE):-list_size(Q, R), SIZE is R + 1.
 
 % concat(List1, List2, List12) --- Concat deux listes
 concat([], L, L).
-concat([T|Q], L, [T|R]):-concat(Q,L,R).
+concat([T|Q], L, [T|R]):-concat(Q, L, R).
 
 % append_element_to_all(Element, List, ResultList) --- Ajoute un element a tous les elements de la liste : append(1, [1,2]) --> [ [1,1] , [1,2] ]
 append_element_to_all(_, [], []).
@@ -185,14 +186,14 @@ movable_piece(B, P):- get_coord(P, COORD),
                         SIZE =:= 0, !, fail.
 movable_piece(B, P):- get_type(P,rabbit),      %Le lapin ne peut qu'avancer (silver)
                       get_piece_side(P, silver),
-                      get_coord(P, [X,Y]),
-                      get_empty_neigh(B, COORD, [[NX,_]]),
+                      get_coord(P, [X,_]),
+                      get_empty_neigh(B, _, [[NX,_]]),
                       NX is X - 1,
                       !, fail.
 movable_piece(B, P):- get_type(P, rabbit),      %Le lapin ne peut qu'avancer (gold)
                       get_piece_side(P, gold),
-                      get_coord(P, [X,Y]),
-                      get_empty_neigh(B, COORD, [[NX,_]]),
+                      get_coord(P, [X,_]),
+                      get_empty_neigh(B, _, [[NX,_]]),
                       NX is X + 1,
                       !, fail.
 % ------Cas ou il y a un allie autour
@@ -214,6 +215,15 @@ movable_piece(B, P):- get_coord(P, COORD),
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% FONCTIONS DE L'IA %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% Action pattern : [SCORE, DEPTH, [ [ACTION1] [ACTION2] ]]
+
+% get_all_actions(Board, Pieces, Depth, Actions) --- Renvoie la liste de toute les actions possibles (Depth = nombre de deplacement max par action)
+get_all_actions(B, [P|[]], DEPTH, ACTIONS):- !,
+                                    get_coord(P, COORD),
+                                    get_basic_move_actions_by_depth(B, COORD, DEPTH, ACTIONS).
+get_all_actions(B, [P|OTHERS], DEPTH, ACTIONS):- get_all_actions(B, OTHERS, DEPTH, SUBACT1),
+                                          get_coord(P, COORD),
+                                          get_basic_move_actions_by_depth(B, COORD, DEPTH, SUBACT2),
+                                          concat(SUBACT2, SUBACT1, ACTIONS).
 
 % delete_disallowed_neigh_for_rabbit(Coord, Neigh, ResultList) --- Supprime le voisin interdit pour un lapin
 delete_disallowed_neigh_for_rabbit(_,[],[]).
@@ -251,16 +261,80 @@ basic_move_foreach_neigh(B, COORD, D, [T|Q], R):- move_piece(B, COORD, T, NEWB),
                                                   append_element_to_all([COORD,T], ACTIONS, NACT),
                                                   basic_move_foreach_neigh(B, COORD, D, Q, OTHERS),
                                                   concat(NACT, OTHERS, R), !.
-basic_move_foreach_neigh(B, COORD, D, [T|Q], R):-basic_move_foreach_neigh(B, COORD, D, Q, R).
+basic_move_foreach_neigh(B, COORD, D, [_|Q], R):-basic_move_foreach_neigh(B, COORD, D, Q, R).
 
 % move_piece(Board, InitPos, NewPos, NewBoard) --- Deplace la piece a la position InitPos a la position NewPos
 move_piece([[X,Y,T,S]|Q], [X,Y], [NX,NY], [[NX,NY,T,S]|Q]):-!.
 move_piece([T|Q], ICOORD, NCOORD, [T|R]):-move_piece(Q, ICOORD, NCOORD, R).
 
+% get_compact_move(Action, CaseDepart, CaseArrivee) --- Renvoie la case depart et la case d'arrivee pour une action donnee
+get_compact_move([[DEBUT,FIN]|[]], DEBUT, FIN):- !.
+get_compact_move([[DEBUT,_]|OTHERS], DEBUT, FIN):- get_compact_move(OTHERS, _, FIN).
+
+% apply_action_on_board(Board, Action, NewBoard) --- Renvoie l'etat du plateau apres application de l'action
+apply_action_on_board(B, ACTION, NEWB) :- get_compact_move(ACTION, DEBUT, FIN),
+                                          move_piece(B, DEBUT, FIN, NEWB).
+
+% get_best_action(Board, Actions, BestScore, BestAction) --- Renvoie la meilleure action a jouer parmis toute la liste
+get_best_action(B, [A|[]], SCORE, A) :- !, apply_action_on_board(B, A, NEWB), board_score(NEWB, NEWB, SCORE).
+get_best_action(B, [A|OTHERS], BSCORE, BACTION) :- get_best_action(B, OTHERS, TEMPSCORE, TEMPACTION),
+                                                      apply_action_on_board(B, A, NEWB),
+                                                      board_score(NEWB, NEWB, ASCORE),
+                                                      compare_actions_score(TEMPSCORE, TEMPACTION, ASCORE, A, BSCORE, BACTION).
+
+% compare_actions_score(Score1, Action1, Score2, Action2, BestScore, BestAction) --- Renvoie la meilleure action entre les deux (Si scores egaux => celle qui a le moins de mouvements)
+compare_actions_score(S1, A1, S2, _, S1, A1) :- S1 > S2, !.
+compare_actions_score(S1, _, S2, A2, S2, A2) :- S1 < S2, !.
+compare_actions_score(S1, A1, _, A2, S1, A1) :- list_size(A1, SIZE1), list_size(A2, SIZE2), SIZE1 < SIZE2, !.
+compare_actions_score(_, _, S2, A2, S2, A2).
 
 
 
+%--->SCORE %%%%%%%% HEURISTIQUES POUR DECISION DE L'IA   ---http://www.techno-science.net/?onglet=glossaire&definition=6418---
+% Poids associes : 
+%  -- Gagnant : INFINI
+%  -- Piece sur le plateau : 20
+%  -- Piece en danger (peu etre push) : -10
+%  -- Piece freeze : -1
+%  -- Distance Lapin : -DISTANCE (si D > 3)
 
+%  -- Enable to push / pull to delete
+%  -- Gagnant next time
+
+% board_score(Board, Pieces, Score) --- Calcul un score correspondant a l'etat du plateau (Score eleve = tres favorable, faible = plutot defavorable)
+board_score(_, [], 0).
+board_score(B, [P|OTHERS], SCORE):-calcul_score_win(P, SWIN),
+                        calcul_score_freeze(B, P, SFREEZE),
+                        calcul_score_piece_alive(B, P, SALIVE),
+                        calcul_score_distance_rabbit(P, SRABBIT),
+                        board_score(B, OTHERS, SOTHERS),
+                        SCORE is SWIN + SFREEZE + SALIVE + 0 + SOTHERS.
+
+
+% calcul_score_win(Piece, Score) --- Renvoie un certain score suivant si la piece permet de gagner ou non
+calcul_score_win([0,_,rabbit, gold], -2000000):-enemy([0,0,rabbit,gold]),!.
+calcul_score_win([0,_,rabbit, gold], 2000000):- !.
+calcul_score_win([7,_,rabbit, silver], -2000000):-enemy([7,0,rabbit,silver]),!.
+calcul_score_win([7,_,rabbit, silver], 2000000):- !.
+calcul_score_win(_, 0).
+
+% calcul_score_freeze(Board, Piece, Score) --- Renvoie un certain score suivant si la pièce est freeze ou pas 
+calcul_score_freeze(_, P, 0):- enemy(P), !.
+calcul_score_freeze(B, P, 0):- movable_piece(B, P), !.
+calcul_score_freeze(_, _, -1).
+
+% calcul_score_piece_alive(Board, Piece, Score) --- Renvoie un certain score suivant si la piece tombe dans une trappe ou non
+calcul_score_piece_alive(B, P, 0):- \+dead_piece(B, P), !.
+calcul_score_piece_alive(_, P, 20):- enemy(P), !.
+calcul_score_piece_alive(_, _, -20).
+
+% calcul_score_distance_rabbit(Piece, Score) --- Renvoie un certain score prenant en compte la distance de la piece avec la ligne final (si lapin)
+calcul_score_distance_rabbit([_,_,TYPE,_], 0):- dif(TYPE, rabbit), !.
+calcul_score_distance_rabbit(P, 0):- enemy(P), !.
+calcul_score_distance_rabbit([X,_,_,gold], 0):- X =< 3, !.
+calcul_score_distance_rabbit([X,_,_,silver], 0):- X >= 4, !.
+calcul_score_distance_rabbit([X,_,_,gold], -X):- !.
+calcul_score_distance_rabbit([X,_,_,silver], -SCORE):- SCORE is 7 - X.
 
 
 
