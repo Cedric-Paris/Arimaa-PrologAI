@@ -25,6 +25,8 @@ get_moves(ACTION, GS, B):- get_movable_allied_pieces(B, B, ALLIES), get_all_acti
 % Debug
 debug_log([]):-write('-END-').
 debug_log([T|Q]):-writeln(T), debug_log(Q).
+debug_log_slow([]):-write('-END-').
+debug_log_slow([T|Q]):-writeln(T), sleep(0.2), debug_log(Q).
 
 % list(E) --- vrai si E est une liste
 list([]).
@@ -122,6 +124,8 @@ force([_,_,horse,_], 3).
 force([_,_,camel,_], 4).
 force([_,_,elephant,_], 5).
 
+stronger_than(P1, P2):-force(P1, F1), force(P2, F2), F1 > F2.
+
 % stronger_or_eq_than(Piece1, Piece2) --- Renvoie vrai si Piece1 est plus ou aussi forte que Piece2
 stronger_or_eq_than(P1, P2):-force(P1, F1), force(P2, F2), F1 >= F2.
 
@@ -217,9 +221,23 @@ movable_piece(B, P):- get_coord(P, COORD),
 %% Action pattern : [SCORE, DEPTH, [ [ACTION1] [ACTION2] ]]
 
 % get_all_actions(Board, Pieces, Depth, Actions) --- Renvoie la liste de toute les actions possibles (Depth = nombre de deplacement max par action)
+get_all_actions(B, [P|[]], DEPTH, ACTIONS):-DEPTH >= 2,
+                                          !,
+                                          get_coord(P, COORD),
+                                          get_basic_move_actions_by_depth(B, COORD, DEPTH, SUBACT1),
+                                          get_pull_actions(B, P, SUBACT2),
+                                          concat(SUBACT2, SUBACT1, ACTIONS).
 get_all_actions(B, [P|[]], DEPTH, ACTIONS):- !,
-                                    get_coord(P, COORD),
-                                    get_basic_move_actions_by_depth(B, COORD, DEPTH, ACTIONS).
+                                          get_coord(P, COORD),
+                                          get_basic_move_actions_by_depth(B, COORD, DEPTH, ACTIONS).
+get_all_actions(B, [P|OTHERS], DEPTH, ACTIONS):-DEPTH >=2,
+                                          !,
+                                          get_all_actions(B, OTHERS, DEPTH, SUBACT1),
+                                          get_coord(P, COORD),
+                                          get_basic_move_actions_by_depth(B, COORD, DEPTH, SUBACT2),
+                                          get_pull_actions(B, P, SUBACT3),
+                                          concat(SUBACT2, SUBACT1, TEMPACT),
+                                          concat(SUBACT3, TEMPACT, ACTIONS).
 get_all_actions(B, [P|OTHERS], DEPTH, ACTIONS):- get_all_actions(B, OTHERS, DEPTH, SUBACT1),
                                           get_coord(P, COORD),
                                           get_basic_move_actions_by_depth(B, COORD, DEPTH, SUBACT2),
@@ -251,7 +269,7 @@ get_basic_move_actions(B, COORD, NEIGH, R):-get_empty_neigh(B, COORD, NEIGH),
                                             append_element_to_all(COORD, SN, ACTIONS),
                                             add_sub_list(ACTIONS, R).
 
-% basic_move_foreach_neigh(Board, StartCoord, Depth, NeighList, Resultat) --- Utilisee par get_basic_move_actions_by_depth, renvoie tous les deplacements possible a partir des voisins.
+% basic_move_foreach_neigh(Board, StartCoord, Depth, NeighList, Result) --- Utilisee par get_basic_move_actions_by_depth, renvoie tous les deplacements possible a partir des voisins.
 basic_move_foreach_neigh(_,_,_,[],[]).
 basic_move_foreach_neigh(B, COORD, D, [T|Q], R):- move_piece(B, COORD, T, NEWB),
                                                   get_piece_by_pos(NEWB, T, PIECE),
@@ -262,6 +280,23 @@ basic_move_foreach_neigh(B, COORD, D, [T|Q], R):- move_piece(B, COORD, T, NEWB),
                                                   basic_move_foreach_neigh(B, COORD, D, Q, OTHERS),
                                                   concat(NACT, OTHERS, R), !.
 basic_move_foreach_neigh(B, COORD, D, [_|Q], R):-basic_move_foreach_neigh(B, COORD, D, Q, R).
+
+% get_pull_actions(Board, Piece, ListResult) --- Recherche toutes les actions "tirees" possibles pour la piece passee en parametre
+get_pull_actions(B, P, ACTIONS):-bagof(R, pull_action(B, P, R), ACTIONS), !.
+get_pull_actions(B, P, []).
+
+% pull_action(Board, Piece, Result) --- Cherche une action "tiree"
+pull_action(_, [_,_,rabbit_], []):-!.
+pull_action(B, P, [pull, [COORD,EN],[NCOORD, COORD]]):-movable_piece(B, P),
+                                                get_coord(P, COORD),
+                                                get_empty_neigh(B, COORD, EMPTYNEIGH),
+                                                get_neigh(COORD, NEIGH),
+                                                get_pieces_by_pos(B, NEIGH, PNEIGH),
+                                                member(EN, EMPTYNEIGH),
+                                                member(N, PNEIGH),
+                                                enemy(N),
+                                                stronger_than(P, N),
+                                                get_coord(N, NCOORD).
 
 % move_piece(Board, InitPos, NewPos, NewBoard) --- Deplace la piece a la position InitPos a la position NewPos
 move_piece([[X,Y,T,S]|Q], [X,Y], [NX,NY], [[NX,NY,T,S]|Q]):-!.
@@ -340,8 +375,7 @@ calcul_score_distance_rabbit([X,_,_,silver], -SCORE):- SCORE is 7 - X.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS 
 
-looping(_,[]).
-looping(B,[T|Q]):-get_coord(T, C), get_basic_move_actions_by_depth(B,C,4,R), debug_log(R), looping(B,Q).
+looping(B,ALLIES):-get_all_actions(B,ALLIES,4,R), debug_log_slow(R).
 
 /*
 bot:get_basic_move_actions_by_depth([[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],[1,0],4,R), bot:debug_log(R).
