@@ -226,7 +226,9 @@ get_all_actions(B, [P|[]], DEPTH, ACTIONS):-DEPTH >= 2,
                                           get_coord(P, COORD),
                                           get_basic_move_actions_by_depth(B, COORD, DEPTH, SUBACT1),
                                           get_pull_actions(B, P, SUBACT2),
-                                          concat(SUBACT2, SUBACT1, ACTIONS).
+                                          concat(SUBACT2, SUBACT1, SUBACT3),
+                                          get_push_actions(B, P, SUBACT4),
+                                          concat(SUBACT4, SUBACT3, ACTIONS).
 get_all_actions(B, [P|[]], DEPTH, ACTIONS):- !,
                                           get_coord(P, COORD),
                                           get_basic_move_actions_by_depth(B, COORD, DEPTH, ACTIONS).
@@ -235,9 +237,11 @@ get_all_actions(B, [P|OTHERS], DEPTH, ACTIONS):-DEPTH >=2,
                                           get_all_actions(B, OTHERS, DEPTH, SUBACT1),
                                           get_coord(P, COORD),
                                           get_basic_move_actions_by_depth(B, COORD, DEPTH, SUBACT2),
-                                          get_pull_actions(B, P, SUBACT3),
-                                          concat(SUBACT2, SUBACT1, TEMPACT),
-                                          concat(SUBACT3, TEMPACT, ACTIONS).
+                                          concat(SUBACT2, SUBACT1, SUBACT3),
+                                          get_pull_actions(B, P, SUBACT4),
+                                          concat(SUBACT4, SUBACT3, TEMPACT),
+                                          get_push_actions(B, P, SUBACT5),
+                                          concat(SUBACT5, TEMPACT, ACTIONS).
 get_all_actions(B, [P|OTHERS], DEPTH, ACTIONS):- get_all_actions(B, OTHERS, DEPTH, SUBACT1),
                                           get_coord(P, COORD),
                                           get_basic_move_actions_by_depth(B, COORD, DEPTH, SUBACT2),
@@ -283,20 +287,37 @@ basic_move_foreach_neigh(B, COORD, D, [_|Q], R):-basic_move_foreach_neigh(B, COO
 
 % get_pull_actions(Board, Piece, ListResult) --- Recherche toutes les actions "tirees" possibles pour la piece passee en parametre
 get_pull_actions(B, P, ACTIONS):-bagof(R, pull_action(B, P, R), ACTIONS), !.
-get_pull_actions(B, P, []).
+get_pull_actions(_, _, []).
 
 % pull_action(Board, Piece, Result) --- Cherche une action "tiree"
-pull_action(_, [_,_,rabbit_], []):-!.
+pull_action(_, [_,_,rabbit,_], _):-fail.
 pull_action(B, P, [pull, [COORD,EN],[NCOORD, COORD]]):-movable_piece(B, P),
-                                                get_coord(P, COORD),
-                                                get_empty_neigh(B, COORD, EMPTYNEIGH),
-                                                get_neigh(COORD, NEIGH),
-                                                get_pieces_by_pos(B, NEIGH, PNEIGH),
-                                                member(EN, EMPTYNEIGH),
-                                                member(N, PNEIGH),
-                                                enemy(N),
-                                                stronger_than(P, N),
-                                                get_coord(N, NCOORD).
+                                                      get_coord(P, COORD),
+                                                      get_empty_neigh(B, COORD, EMPTYNEIGH),
+                                                      get_neigh(COORD, NEIGH),
+                                                      get_pieces_by_pos(B, NEIGH, PNEIGH),
+                                                      member(EN, EMPTYNEIGH),
+                                                      member(N, PNEIGH),
+                                                      enemy(N),
+                                                      stronger_than(P, N),
+                                                      get_coord(N, NCOORD).
+
+% get_push_actions(Board, Piece, ListResult) --- Recherche toutes les actions "pousser" possibles pour la piece passee en parametre
+get_push_actions(B, P, ACTIONS):-bagof(R, push_action(B, P, R), ACTIONS), !.
+get_push_actions(_, _, []).
+
+% push_action(_, [_,_,rabbit,_], [])
+push_action(_, [_,_,rabbit,_], _):-fail.
+push_action(B, P, [push, [NCOORD,EN],[COORD, NCOORD]]):-movable_piece(B, P),
+                                                      get_coord(P, COORD),
+                                                      get_neigh(COORD, NEIGH),
+                                                      get_pieces_by_pos(B, NEIGH, PNEIGH),
+                                                      member(N, PNEIGH),
+                                                      enemy(N),
+                                                      stronger_than(P, N),
+                                                      get_coord(N, NCOORD),
+                                                      get_empty_neigh(B, NCOORD, EMPTYNEIGH),
+                                                      member(EN, EMPTYNEIGH).
 
 % move_piece(Board, InitPos, NewPos, NewBoard) --- Deplace la piece a la position InitPos a la position NewPos
 move_piece([[X,Y,T,S]|Q], [X,Y], [NX,NY], [[NX,NY,T,S]|Q]):-!.
@@ -307,6 +328,12 @@ get_compact_move([[DEBUT,FIN]|[]], DEBUT, FIN):- !.
 get_compact_move([[DEBUT,_]|OTHERS], DEBUT, FIN):- get_compact_move(OTHERS, _, FIN).
 
 % apply_action_on_board(Board, Action, NewBoard) --- Renvoie l'etat du plateau apres application de l'action
+apply_action_on_board(B, [pull, [DEBUT1, FIN1], [DEBUT2, FIN2]], NEWB):-!,
+                                                                        move_piece(B, DEBUT1, FIN1, TEMPB),
+                                                                        move_piece(TEMPB, DEBUT2, FIN2, NEWB).
+apply_action_on_board(B, [push, [DEBUT1, FIN1], [DEBUT2, FIN2]], NEWB):-!,
+                                                                        move_piece(B, DEBUT1, FIN1, TEMPB),
+                                                                        move_piece(TEMPB, DEBUT2, FIN2, NEWB).
 apply_action_on_board(B, ACTION, NEWB) :- get_compact_move(ACTION, DEBUT, FIN),
                                           move_piece(B, DEBUT, FIN, NEWB).
 
@@ -343,7 +370,7 @@ board_score(B, [P|OTHERS], SCORE):-calcul_score_win(P, SWIN),
                         calcul_score_piece_alive(B, P, SALIVE),
                         calcul_score_distance_rabbit(P, SRABBIT),
                         board_score(B, OTHERS, SOTHERS),
-                        SCORE is SWIN + SFREEZE + SALIVE + 0 + SOTHERS.
+                        SCORE is SWIN + SFREEZE + SALIVE + SRABBIT + SOTHERS.
 
 
 % calcul_score_win(Piece, Score) --- Renvoie un certain score suivant si la piece permet de gagner ou non
