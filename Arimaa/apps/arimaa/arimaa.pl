@@ -16,8 +16,8 @@
 
 % default call
 %get_moves([[[1,5],[2,5]],[[0,0],[1,0]],[[0,1],[0,0]],[[0,0],[0,1]]], Gamestate, Board).
-%get_moves(ACTION, GS, B):- get_movable_allied_pieces(B, B, [ALLY|OTHER]), get_coord(ALLY, COORD), get_basic_move_actions_by_depth(B, COORD, 4, [ACTION|Q]).
-get_moves(ACTION, GS, B):- get_movable_allied_pieces(B, B, ALLIES), get_all_actions(B, ALLIES, 4, ACTS), get_best_action(B, ACTS, _, ACTION).
+%get_moves(ACTION, GS, B):- get_movable_allied_pieces(B, B, [ALLY|OTHER]), get_coord(ALLY, Coord), get_basic_move_actions_by_depth(B, Coord, 4, [ACTION|Q]).
+get_moves(ACTION, GS, Board):- get_movable_allied_pieces(Board, Board, ALLIES), get_all_actions(Board, ALLIES, 4, ACTS), get_best_action(Board, ACTS, _, ACTION).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% FONCTIONS OUTILS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -34,20 +34,20 @@ list([_|_]).
 
 % list_size(List, Size) --- Determine le nombre d'element dans une liste
 list_size([],0).
-list_size([_|Q], SIZE):-list_size(Q, R), SIZE is R + 1. 
+list_size([_|Q], Size):-list_size(Q, Result), Size is Result + 1. 
 
 % concat(List1, List2, List12) --- Concat deux listes
 concat([], L, L).
-concat([T|Q], L, [T|R]):-concat(Q, L, R).
+concat([T|Q], L, [T|Result]):-concat(Q, L, Result).
 
 % append_element_to_all(Element, List, ResultList) --- Ajoute un element a tous les elements de la liste : append(1, [1,2]) --> [ [1,1] , [1,2] ]
 append_element_to_all(_, [], []).
-append_element_to_all(E, [T|Q], [[E|T]|R]):-list(T), append_element_to_all(E, Q, R), !.
-append_element_to_all(E, [T|Q], [[E|[T]]|R]):-append_element_to_all(E, Q, R).
+append_element_to_all(Element, [T|Q], [[Element|T]|Result]):-list(T), append_element_to_all(Element, Q, Result), !.
+append_element_to_all(Element, [T|Q], [[Element|[T]]|Result]):-append_element_to_all(Element, Q, Result).
 
 % add_sub_list(List, ResultList) --- imbrique chaque element dans une sous liste : [1,2,3] --> [ [1], [2], [3] ]
 add_sub_list([],[]).
-add_sub_list([T|Q],[[T]|R]):-add_sub_list(Q,R).
+add_sub_list([T|Q],[[T]|Result]):-add_sub_list(Q,Result).
 
 
 
@@ -65,46 +65,46 @@ get_y([_,Y,_,_], Y).
 get_coord([X,Y,_,_], [X,Y]).
 
 % get_type(Piece, Type) --- Determine le type d'une pièce [0,0,rabbit,silver] -> R=rabbit
-get_type([_,_,R,_], R).
+get_type([_,_,Type,_], Type).
 
 % get_piece_side(Piece, Side) --- Determine le camp d'une piece  [0,0,rabbit,silver] -> R=silver
-get_piece_side([_,_,_,R], R).
+get_piece_side([_,_,_,Side], Side).
 
 % get_piece_by_pos(Board, Coord, ResultPiece) --- Trouve la piece correspondant a la position Coord.
 get_piece_by_pos([],_,_):-fail.
-get_piece_by_pos([R|_],[X,Y],R):-get_coord(R, [X,Y]),!.
-get_piece_by_pos([_|Q],[X,Y],R):-get_piece_by_pos(Q,[X,Y],R).
+get_piece_by_pos([Piece|_], [X,Y], Piece):-get_coord(Piece, [X,Y]),!.
+get_piece_by_pos([_|Q], [X,Y], Piece):-get_piece_by_pos(Q, [X,Y], Piece).
 
 % get_pieces_by_pos(Board, Coords, ResultPiece) --- Retourne la liste des pièces correspondant aux coordonnées si elles existent.
 get_pieces_by_pos(_,[],[]).
-get_pieces_by_pos(B, [T|Q], [R|PIECES]):-get_piece_by_pos(B, T, R), get_pieces_by_pos(B, Q, PIECES), !.
-get_pieces_by_pos(B, [_|Q], PIECES):-get_pieces_by_pos(B, Q, PIECES).
+get_pieces_by_pos(Board, [T|Q], [Result|Pieces]):-get_piece_by_pos(Board, T, Result), get_pieces_by_pos(Board, Q, Pieces), !.
+get_pieces_by_pos(Board, [_|Q], Pieces):-get_pieces_by_pos(Board, Q, Pieces).
 
 % empty(Board, Coord) --- Renvoie vrai si la case de coordonnees Coord est vide
-empty(B, [X,Y]):- \+get_piece_by_pos(B, [X,Y], _).
+empty(Board, [X,Y]):- \+get_piece_by_pos(Board, [X,Y], _).
 
 % enemy(Piece) --- Renvoie vrai si la piece appartient a l'ennemi
 enemy([_,_,_,gold]).
 
 % enemy_around(Board, Coord) --- Renvoie vrai si un ennemi est voisin de la case Coord
-enemy_around(B, COORD):-get_neigh(COORD, NEIGHLIST),
-                        get_enemies(B, ENLIST),
-                        get_pieces_by_pos(ENLIST, NEIGHLIST, R),
-                        list_size(R, SIZE),
-                        SIZE =\= 0.
+enemy_around(Board, Coord) :- get_neigh(Coord, NeighList),
+                              get_enemies(Board, EnemyList),
+                              get_pieces_by_pos(EnemyList, NeighList, EnPieces),
+                              list_size(EnPieces, Size),
+                              Size =\= 0.
 
 % are_enemy(Piece1, Piece2) --- Renvoie vrai si les deux pièces sont dans des camps opposes
-are_enemy(P1, P2):-get_piece_side(P1, S1), get_piece_side(P2, S2), dif(S1,S2). 
+are_enemy(Piece1, Piece2):-get_piece_side(Piece1, Side1), get_piece_side(Piece2, Side2), dif(Side1,Side2). 
 
 % ally(Piece) --- Renvoie vrai si la piece est alliee
 ally([_,_,_,silver]).
 
 % ally_around(Board, Coord) --- Renvoie vrai si un allie est voisin de la case Coord
-ally_around(B, COORD):- get_neigh(COORD, NEIGHLIST),
-                        get_allies(B, ALLIST),
-                        get_pieces_by_pos(ALLIST, NEIGHLIST, R),
-                        list_size(R, SIZE),
-                        SIZE =\= 0.
+ally_around(Board, Coord) :- get_neigh(Coord, NeighList),
+                              get_allies(Board, AlliesList),
+                              get_pieces_by_pos(AlliesList, NeighList, AllPieces),
+                              list_size(AllPieces, Size),
+                              Size =\= 0.
 
 % trap(Coord) --- Vrai si la case est une trape
 trap([2,2]).
@@ -113,8 +113,8 @@ trap([5,2]).
 trap([5,5]).
 
 % dead_piece(Board, Piece) --- Vrai si la piece est une piece qui va tomber (Au dessus d'une trappe sans voisin)
-dead_piece(B, [X,Y,_,SIDE]):- trap([X,Y]), enemy([X,Y,_,SIDE]), \+enemy_around(B, [X,Y]).
-dead_piece(B, [X,Y,_,SIDE]):- trap([X,Y]), ally([X,Y,_,SIDE]), \+ally_around(B, [X,Y]).
+dead_piece(Board, [X,Y,_,Side]):- trap([X,Y]), enemy([X,Y,_,Side]), \+enemy_around(Board, [X,Y]).
+dead_piece(Board, [X,Y,_,Side]):- trap([X,Y]), ally([X,Y,_,Side]), \+ally_around(Board, [X,Y]).
 
 % force(Piece, Result) --- Donne la force d'une piece suivant son type
 force([_,_,rabbit,_], 0).
@@ -124,34 +124,34 @@ force([_,_,horse,_], 3).
 force([_,_,camel,_], 4).
 force([_,_,elephant,_], 5).
 
-stronger_than(P1, P2):-force(P1, F1), force(P2, F2), F1 > F2.
+stronger_than(Piece1, Piece2):-force(Piece1, Force1), force(Piece2, Force2), Force1 > Force2.
 
 % stronger_or_eq_than(Piece1, Piece2) --- Renvoie vrai si Piece1 est plus ou aussi forte que Piece2
-stronger_or_eq_than(P1, P2):-force(P1, F1), force(P2, F2), F1 >= F2.
+stronger_or_eq_than(Piece1, Piece2):-force(Piece1, Force1), force(Piece2, Force2), Force1 >= Force2.
 
 % stronger_or_eq_than_all(Piece, Other) --- Renvoie vrai si la piece est plus ou aussi forte que toutes les autres
 stronger_or_eq_than_all(_, []).
-stronger_or_eq_than_all(P, [T|Q]):-stronger_or_eq_than(P, T), stronger_or_eq_than_all(P, Q).
+stronger_or_eq_than_all(Piece, [T|Q]):-stronger_or_eq_than(Piece, T), stronger_or_eq_than_all(Piece, Q).
 
 % get_enemies(Board, ResultList) --- Renvoie la liste des pieces enemies sur le plateau
 get_enemies([], []).
-get_enemies([T|Q], [T|OTHERS]):-enemy(T), get_enemies(Q, OTHERS), !.
-get_enemies([_|Q], OTHERS):-get_enemies(Q, OTHERS).
+get_enemies([T|Q], [T|Others]):-enemy(T), get_enemies(Q, Others), !.
+get_enemies([_|Q], Others):-get_enemies(Q, Others).
 
 % get_allies(Board, ResultList) --- Renvoie la liste des pieces alliees sur le plateau
 get_allies([], []).
-get_allies([T|Q], [T|OTHERS]):-ally(T), get_allies(Q, OTHERS), !.
-get_allies([_|Q], OTHERS):-get_allies(Q, OTHERS).
+get_allies([T|Q], [T|Others]):-ally(T), get_allies(Q, Others), !.
+get_allies([_|Q], Others):-get_allies(Q, Others).
 
 % get_enemy_by_type(Board, Type, ResultList) --- Renvoie la liste des pieces enemies de type TYPE
 get_enemy_by_type([],_,[]).
-get_enemy_by_type([T|Q], TYPE, [T|R]):-enemy(T), get_type(T, TYPE), get_enemy_by_type(Q, TYPE, R),!.
-get_enemy_by_type([_|Q], TYPE, R):-get_enemy_by_type(Q, TYPE, R).
+get_enemy_by_type([T|Q], Type, [T|Result]):-enemy(T), get_type(T, Type), get_enemy_by_type(Q, Type, Result), !.
+get_enemy_by_type([_|Q], Type, Result):-get_enemy_by_type(Q, Type, Result).
 
 % get_allies_by_type(Board, Type, ResultList) --- Renvoie la liste des pieces alliees de type TYPE
 get_allies_by_type([],_,[]).
-get_allies_by_type([T|Q], TYPE, [T|R]):-ally(T), get_type(T, TYPE), get_allies_by_type(Q, TYPE, R),!.
-get_allies_by_type([_|Q], TYPE, R):-get_allies_by_type(Q, TYPE, R).
+get_allies_by_type([T|Q], Type, [T|Result]):-ally(T), get_type(T, Type), get_allies_by_type(Q, Type, Result),!.
+get_allies_by_type([_|Q], Type, Result):-get_allies_by_type(Q, Type, Result).
 
 % get_neigh(Coord, NeighboorsList) --- Renvoie la liste des coordonnees des cases voisines : [O, N, E, S] => [1, 2, 3, 4]
 % ------Cas particuliers : coins
@@ -169,49 +169,49 @@ get_neigh([X,Y], [[X,Y1],[X2,Y],[X,Y3],[X4,Y]]):- Y1 is Y-1, X2 is X-1, Y3 is Y+
 
 % get_empty_pos(Board, ListCoord, EmptyCoord) --- Renvoie la liste des coordonnes des case vides parmis celle de la liste ListCoord
 get_empty_pos(_, [], []).
-get_empty_pos(B, [T|Q], [T|R]):-empty(B, T), get_empty_pos(B, Q, R),!.
-get_empty_pos(B, [_|Q], R):-get_empty_pos(B, Q, R).
+get_empty_pos(Board, [T|Q], [T|EmpCoord]):-empty(Board, T), get_empty_pos(Board, Q, EmpCoord),!.
+get_empty_pos(Board, [_|Q], EmpCoord):-get_empty_pos(Board, Q, EmpCoord).
 
 % get_empty_neigh(Board, Coord, ResultList) --- Renvoie la liste des voisins vide pour une case de coordonnees Coord
-get_empty_neigh(B, [X,Y], R):-get_neigh([X,Y], N), get_empty_pos(B, N, R).
+get_empty_neigh(Board, [X,Y], EmpNeigh):-get_neigh([X,Y], Neigh), get_empty_pos(Board, Neigh, EmpNeigh).
 
 % get_movable_allied_pieces(Board, Pieces, ResultList) --- Renvoie la liste des pieces alliees qui peuvent bouger.
 get_movable_allied_pieces(_, [], []).
-get_movable_allied_pieces(B, [T|Q], [T|R]) :- ally(T),
-                                              movable_piece(B,T),
-                                              get_movable_allied_pieces(B, Q, R), !.
-get_movable_allied_pieces(B, [_|Q], R) :- get_movable_allied_pieces(B, Q, R), !.
+get_movable_allied_pieces(Board, [T|Q], [T|Result]):- ally(T),
+                                                      movable_piece(Board,T),
+                                                      get_movable_allied_pieces(Board, Q, Result), !.
+get_movable_allied_pieces(Board, [_|Q], Result) :- get_movable_allied_pieces(Board, Q, Result), !.
 
 % movable_piece(Board, Piece) --- Indique si une piece est deplacable
 % ------Cas entouré de pieces
-movable_piece(B, P):- get_coord(P, COORD),
-                        get_empty_neigh(B, COORD, LISTNEIGH),
-                        list_size(LISTNEIGH, SIZE),
-                        SIZE =:= 0, !, fail.
-movable_piece(B, P):- get_type(P,rabbit),      %Le lapin ne peut qu'avancer (silver)
-                      get_piece_side(P, silver),
-                      get_coord(P, [X,_]),
-                      get_empty_neigh(B, _, [[NX,_]]),
-                      NX is X - 1,
-                      !, fail.
-movable_piece(B, P):- get_type(P, rabbit),      %Le lapin ne peut qu'avancer (gold)
-                      get_piece_side(P, gold),
-                      get_coord(P, [X,_]),
-                      get_empty_neigh(B, _, [[NX,_]]),
-                      NX is X + 1,
-                      !, fail.
+movable_piece(Board, Piece):- get_coord(Piece, Coord),
+                              get_empty_neigh(Board, Coord, ListNeigh),
+                              list_size(ListNeigh, Size),
+                              Size =:= 0, !, fail.
+movable_piece(Board, Piece):- get_type(Piece,rabbit),      %Le lapin ne peut qu'avancer (silver)
+                              get_piece_side(Piece, silver),
+                              get_coord(Piece, [X,_]),
+                              get_empty_neigh(Board, _, [[NeighX,_]]),
+                              NeighX is X - 1,
+                              !, fail.
+movable_piece(Board, Piece):- get_type(Piece, rabbit),      %Le lapin ne peut qu'avancer (gold)
+                              get_piece_side(Piece, gold),
+                              get_coord(Piece, [X,_]),
+                              get_empty_neigh(Board, _, [[NeighX,_]]),
+                              NeighX is X + 1,
+                              !, fail.
 % ------Cas ou il y a un allie autour
-movable_piece(B, P):- enemy(P),
-                        get_coord(P, COORD),
-                        enemy_around(B, COORD), !.
-movable_piece(B, P):- ally(P),
-                        get_coord(P, COORD),
-                        ally_around(B, COORD), !.
+movable_piece(Board, Piece):- enemy(Piece),
+                              get_coord(Piece, Coord),
+                              enemy_around(Board, Coord), !.
+movable_piece(Board, Piece):- ally(Piece),
+                              get_coord(Piece, Coord),
+                              ally_around(Board, Coord), !.
 % ------Cas ou on est plus fort que tous les enemies
-movable_piece(B, P):- get_coord(P, COORD),
-                        get_neigh(COORD, LISTNEIGH),
-                        get_pieces_by_pos(B, LISTNEIGH, NEIGHPIECES),
-                        stronger_or_eq_than_all(P, NEIGHPIECES), !.
+movable_piece(Board, Piece):- get_coord(Piece, Coord),
+                              get_neigh(Coord, ListNeigh),
+                              get_pieces_by_pos(Board, ListNeigh, NeighPieces),
+                              stronger_or_eq_than_all(Piece, NeighPieces), !.
 
 
 
@@ -221,134 +221,136 @@ movable_piece(B, P):- get_coord(P, COORD),
 %% Action pattern : [SCORE, DEPTH, [ [ACTION1] [ACTION2] ]]
 
 % get_all_actions(Board, Pieces, Depth, Actions) --- Renvoie la liste de toute les actions possibles (Depth = nombre de deplacement max par action)
-get_all_actions(B, [P|[]], DEPTH, ACTIONS):-DEPTH >= 2,
-                                          !,
-                                          get_coord(P, COORD),
-                                          get_basic_move_actions_by_depth(B, COORD, DEPTH, SUBACT1),
-                                          get_pull_actions(B, P, SUBACT2),
-                                          concat(SUBACT2, SUBACT1, SUBACT3),
-                                          get_push_actions(B, P, SUBACT4),
-                                          concat(SUBACT4, SUBACT3, ACTIONS).
-get_all_actions(B, [P|[]], DEPTH, ACTIONS):- !,
-                                          get_coord(P, COORD),
-                                          get_basic_move_actions_by_depth(B, COORD, DEPTH, ACTIONS).
-get_all_actions(B, [P|OTHERS], DEPTH, ACTIONS):-DEPTH >=2,
-                                          !,
-                                          get_all_actions(B, OTHERS, DEPTH, SUBACT1),
-                                          get_coord(P, COORD),
-                                          get_basic_move_actions_by_depth(B, COORD, DEPTH, SUBACT2),
-                                          concat(SUBACT2, SUBACT1, SUBACT3),
-                                          get_pull_actions(B, P, SUBACT4),
-                                          concat(SUBACT4, SUBACT3, TEMPACT),
-                                          get_push_actions(B, P, SUBACT5),
-                                          concat(SUBACT5, TEMPACT, ACTIONS).
-get_all_actions(B, [P|OTHERS], DEPTH, ACTIONS):- get_all_actions(B, OTHERS, DEPTH, SUBACT1),
-                                          get_coord(P, COORD),
-                                          get_basic_move_actions_by_depth(B, COORD, DEPTH, SUBACT2),
-                                          concat(SUBACT2, SUBACT1, ACTIONS).
+get_all_actions(Board, [Piece|[]], Depth, Actions) :- Depth >= 2,
+                                                      !,
+                                                      get_coord(Piece, Coord),
+                                                      get_basic_move_actions_by_depth(Board, Coord, Depth, SubAct1),
+                                                      get_pull_actions(Board, Piece, SubAct2),
+                                                      concat(SubAct2, SubAct1, SubAct3),
+                                                      get_push_actions(Board, Piece, SubAct4),
+                                                      concat(SubAct4, SubAct3, Actions).
+get_all_actions(Board, [Piece|[]], Depth, Actions) :- !,
+                                                      get_coord(Piece, Coord),
+                                                      get_basic_move_actions_by_depth(Board, Coord, Depth, Actions).
+get_all_actions(Board, [Piece|Others], Depth, Actions):-Depth >=2,
+                                                      !,
+                                                      get_all_actions(Board, Others, Depth, SubAct1),
+                                                      get_coord(Piece, Coord),
+                                                      get_basic_move_actions_by_depth(Board, Coord, Depth, SubAct2),
+                                                      concat(SubAct2, SubAct1, SubAct3),
+                                                      get_pull_actions(Board, Piece, SubAct4),
+                                                      concat(SubAct4, SubAct3, TEMPACT),
+                                                      get_push_actions(Board, Piece, SubAct5),
+                                                      concat(SubAct5, TEMPACT, Actions).
+get_all_actions(Board, [Piece|Others], Depth, Actions):- get_all_actions(Board, Others, Depth, SubAct1),
+                                                      get_coord(Piece, Coord),
+                                                      get_basic_move_actions_by_depth(Board, Coord, Depth, SubAct2),
+                                                      concat(SubAct2, SubAct1, Actions).
 
-% delete_disallowed_neigh_for_rabbit(Coord, Neigh, ResultList) --- Supprime le voisin interdit pour un lapin
+% delete_disallowed_neigh_for_rabbit(Piece, Neigh, ResultList) --- Supprime le voisin interdit pour un lapin
 delete_disallowed_neigh_for_rabbit(_,[],[]).
-delete_disallowed_neigh_for_rabbit([X,Y,rabbit,silver], [[NX,Y]|Q], Q):- NX is X - 1, !.
-delete_disallowed_neigh_for_rabbit([X,Y,rabbit,gold], [[NX,Y]|Q], Q):- NX is X + 1, !.
-delete_disallowed_neigh_for_rabbit(P, [T|Q], [T|R]):- delete_disallowed_neigh_for_rabbit(P,Q,R).
+delete_disallowed_neigh_for_rabbit([X,Y,rabbit,silver], [[NeighX,Y]|Q], Q):- NeighX is X - 1, !.
+delete_disallowed_neigh_for_rabbit([X,Y,rabbit,gold], [[NeighX,Y]|Q], Q):- NeighX is X + 1, !.
+delete_disallowed_neigh_for_rabbit(Piece, [T|Q], [T|Result]):- delete_disallowed_neigh_for_rabbit(Piece,Q,Result).
 
 % get_basic_move_actions_by_depth(Board, StartCoord, Depth, Result) --- Recherche tous les deplacement possible jusqu'a une profondeur donnee : profondeur=1 --> deplacements de 1 case
 get_basic_move_actions_by_depth(_,_,0,[]):-!.
-get_basic_move_actions_by_depth(B, COORD, DEPTH, R):- get_basic_move_actions(B, COORD, N, ACTIONS),
-                                                      D is DEPTH-1,
-                                                      basic_move_foreach_neigh(B, COORD, D, N, NACT),
-                                                      concat(ACTIONS,NACT,R).
+get_basic_move_actions_by_depth(Board, Coord, Depth, Result):-get_basic_move_actions(Board, Coord, Neigh, Actions),
+                                                            NewDepth is Depth - 1,
+                                                            basic_move_foreach_neigh(Board, Coord, NewDepth, Neigh, NeighActions),
+                                                            concat(Actions, NeighActions, Result).
 
 % get_basic_move_actions(Board, StartCoord, Voisins, Result) --- Renvoie les voisins accessibles et les deplacements possibles de 1 case max
-get_basic_move_actions(B, COORD, NEIGH, R):-get_empty_neigh(B, COORD, UNSURENEIGH),
-                                            get_piece_by_pos(B, COORD, P),
-                                            delete_disallowed_neigh_for_rabbit(P, UNSURENEIGH, NEIGH),
-                                            !,
-                                            add_sub_list(NEIGH, SN),
-                                            append_element_to_all(COORD, SN, ACTIONS),
-                                            add_sub_list(ACTIONS, R).
-get_basic_move_actions(B, COORD, NEIGH, R):-get_empty_neigh(B, COORD, NEIGH),
-                                            add_sub_list(NEIGH, SN),
-                                            append_element_to_all(COORD, SN, ACTIONS),
-                                            add_sub_list(ACTIONS, R).
+get_basic_move_actions(Board, Coord, Neigh, Result):- get_empty_neigh(Board, Coord, UnsureNeigh),
+                                                      get_piece_by_pos(Board, Coord, Piece),
+                                                      delete_disallowed_neigh_for_rabbit(Piece, UnsureNeigh, Neigh),
+                                                      !,
+                                                      add_sub_list(Neigh, SubListedNeigh),
+                                                      append_element_to_all(Coord, SubListedNeigh, Actions),
+                                                      add_sub_list(Actions, Result).
+get_basic_move_actions(Board, Coord, Neigh, Result):- get_empty_neigh(Board, Coord, Neigh),
+                                                      add_sub_list(Neigh, SubListedNeigh),
+                                                      append_element_to_all(Coord, SubListedNeigh, Actions),
+                                                      add_sub_list(Actions, Result).
 
 % basic_move_foreach_neigh(Board, StartCoord, Depth, NeighList, Result) --- Utilisee par get_basic_move_actions_by_depth, renvoie tous les deplacements possible a partir des voisins.
 basic_move_foreach_neigh(_,_,_,[],[]).
-basic_move_foreach_neigh(B, COORD, D, [T|Q], R):- move_piece(B, COORD, T, NEWB),
-                                                  get_piece_by_pos(NEWB, T, PIECE),
-                                                  movable_piece(NEWB, PIECE),
-                                                  \+dead_piece(NEWB, PIECE),
-                                                  get_basic_move_actions_by_depth(NEWB, T, D, ACTIONS),
-                                                  append_element_to_all([COORD,T], ACTIONS, NACT),
-                                                  basic_move_foreach_neigh(B, COORD, D, Q, OTHERS),
-                                                  concat(NACT, OTHERS, R), !.
-basic_move_foreach_neigh(B, COORD, D, [_|Q], R):-basic_move_foreach_neigh(B, COORD, D, Q, R).
+basic_move_foreach_neigh(Board, Coord, Depth, [Neigh|Q], Result):-move_piece(Board, Coord, Neigh, NewBoard),
+                                                                  get_piece_by_pos(NewBoard, Neigh, Piece),
+                                                                  movable_piece(NewBoard, Piece),
+                                                                  \+dead_piece(NewBoard, Piece),
+                                                                  get_basic_move_actions_by_depth(NewBoard, Neigh, Depth, Actions),
+                                                                  append_element_to_all([Coord,Neigh], Actions, NewActions),
+                                                                  basic_move_foreach_neigh(Board, Coord, Depth, Q, Others),
+                                                                  concat(NewActions, Others, Result), !.
+basic_move_foreach_neigh(Board, Coord, Depth, [_|Q], Result):-basic_move_foreach_neigh(Board, Coord, Depth, Q, Result).
 
-% get_pull_actions(Board, Piece, ListResult) --- Recherche toutes les actions "tirees" possibles pour la piece passee en parametre
-get_pull_actions(B, P, ACTIONS):-bagof(R, pull_action(B, P, R), ACTIONS), !.
+% get_pull_actions(Board, Piece, ListResult) --- Recherche toutes les actions "tirer" possibles pour la piece passee en parametre
+get_pull_actions(Board, Piece, Actions):-bagof(PullAct, pull_action(Board, Piece, PullAct), Actions), !.
 get_pull_actions(_, _, []).
 
-% pull_action(Board, Piece, Result) --- Cherche une action "tiree"
+% pull_action(Board, Piece, Result) --- Cherche une action "tirer"
 pull_action(_, [_,_,rabbit,_], _):-fail.
-pull_action(B, P, [pull, [COORD,EN],[NCOORD, COORD]]):-movable_piece(B, P),
-                                                      get_coord(P, COORD),
-                                                      get_empty_neigh(B, COORD, EMPTYNEIGH),
-                                                      get_neigh(COORD, NEIGH),
-                                                      get_pieces_by_pos(B, NEIGH, PNEIGH),
-                                                      member(EN, EMPTYNEIGH),
-                                                      member(N, PNEIGH),
-                                                      enemy(N),
-                                                      stronger_than(P, N),
-                                                      get_coord(N, NCOORD).
+pull_action(Board, Piece, [pull, [Coord,EmptyCoord],[EnemCoord, Coord]]):-movable_piece(Board, Piece),
+                                                                        get_coord(Piece, Coord),
+                                                                        get_empty_neigh(Board, Coord, EmptyNeigh),
+                                                                        get_neigh(Coord, Neigh),
+                                                                        get_pieces_by_pos(Board, Neigh, NeighList),
+                                                                        member(EmptyCoord, EmptyNeigh),
+                                                                        member(Enem, NeighList),
+                                                                        enemy(Enem),
+                                                                        stronger_than(Piece, Enem),
+                                                                        get_coord(Enem, EnemCoord).
 
 % get_push_actions(Board, Piece, ListResult) --- Recherche toutes les actions "pousser" possibles pour la piece passee en parametre
-get_push_actions(B, P, ACTIONS):-bagof(R, push_action(B, P, R), ACTIONS), !.
+get_push_actions(Board, Piece, Actions):-bagof(PushAct, push_action(Board, Piece, PushAct), Actions), !.
 get_push_actions(_, _, []).
 
-% push_action(_, [_,_,rabbit,_], [])
+% push_action(Board, Piece, Result) --- Cherche une action "pousser"
 push_action(_, [_,_,rabbit,_], _):-fail.
-push_action(B, P, [push, [NCOORD,EN],[COORD, NCOORD]]):-movable_piece(B, P),
-                                                      get_coord(P, COORD),
-                                                      get_neigh(COORD, NEIGH),
-                                                      get_pieces_by_pos(B, NEIGH, PNEIGH),
-                                                      member(N, PNEIGH),
-                                                      enemy(N),
-                                                      stronger_than(P, N),
-                                                      get_coord(N, NCOORD),
-                                                      get_empty_neigh(B, NCOORD, EMPTYNEIGH),
-                                                      member(EN, EMPTYNEIGH).
+push_action(Board, Piece, [push, [EnemCoord,EmptyCoord],[Coord, EnemCoord]]):-movable_piece(Board, Piece),
+                                                                              get_coord(Piece, Coord),
+                                                                              get_neigh(Coord, Neigh),
+                                                                              get_pieces_by_pos(Board, Neigh, NeighList),
+                                                                              member(Enem, NeighList),
+                                                                              enemy(Enem),
+                                                                              stronger_than(Piece, Enem),
+                                                                              get_coord(Enem, EnemCoord),
+                                                                              get_empty_neigh(Board, EnemCoord, EmptyNeigh),
+                                                                              member(EmptyCoord, EmptyNeigh).
 
 % move_piece(Board, InitPos, NewPos, NewBoard) --- Deplace la piece a la position InitPos a la position NewPos
-move_piece([[X,Y,T,S]|Q], [X,Y], [NX,NY], [[NX,NY,T,S]|Q]):-!.
-move_piece([T|Q], ICOORD, NCOORD, [T|R]):-move_piece(Q, ICOORD, NCOORD, R).
+move_piece([[X,Y,Type,Side]|Q], [X,Y], [NewX,NewY], [[NewX,NewY,Type,Side]|Q]):-!.
+move_piece([T|Q], ICoord, NCoord, [T|NewBoard]):-move_piece(Q, ICoord, NCoord, NewBoard).
 
 % get_compact_move(Action, CaseDepart, CaseArrivee) --- Renvoie la case depart et la case d'arrivee pour une action donnee
-get_compact_move([[DEBUT,FIN]|[]], DEBUT, FIN):- !.
-get_compact_move([[DEBUT,_]|OTHERS], DEBUT, FIN):- get_compact_move(OTHERS, _, FIN).
+get_compact_move([[Debut,Fin]|[]], Debut, Fin):- !.
+get_compact_move([[Debut,_]|Others], Debut, Fin):- get_compact_move(Others, _, Fin).
 
 % apply_action_on_board(Board, Action, NewBoard) --- Renvoie l'etat du plateau apres application de l'action
-apply_action_on_board(B, [pull, [DEBUT1, FIN1], [DEBUT2, FIN2]], NEWB):-!,
-                                                                        move_piece(B, DEBUT1, FIN1, TEMPB),
-                                                                        move_piece(TEMPB, DEBUT2, FIN2, NEWB).
-apply_action_on_board(B, [push, [DEBUT1, FIN1], [DEBUT2, FIN2]], NEWB):-!,
-                                                                        move_piece(B, DEBUT1, FIN1, TEMPB),
-                                                                        move_piece(TEMPB, DEBUT2, FIN2, NEWB).
-apply_action_on_board(B, ACTION, NEWB) :- get_compact_move(ACTION, DEBUT, FIN),
-                                          move_piece(B, DEBUT, FIN, NEWB).
+apply_action_on_board(Board, [pull, [Debut1, Fin1], [Debut2, Fin2]], NewBoard):-!,
+                                                                              move_piece(Board, Debut1, Fin1, TempBoard),
+                                                                              move_piece(TempBoard, Debut2, Fin2, NewBoard).
+apply_action_on_board(Board, [push, [Debut1, Fin1], [Debut2, Fin2]], NewBoard):-!,
+                                                                              move_piece(Board, Debut1, Fin1, TempBoard),
+                                                                              move_piece(TempBoard, Debut2, Fin2, NewBoard).
+apply_action_on_board(Board, Action, NewBoard):-get_compact_move(Action, Debut, Fin),
+                                                move_piece(Board, Debut, Fin, NewBoard).
 
 % get_best_action(Board, Actions, BestScore, BestAction) --- Renvoie la meilleure action a jouer parmis toute la liste
-get_best_action(B, [A|[]], SCORE, A) :- !, apply_action_on_board(B, A, NEWB), board_score(NEWB, NEWB, SCORE).
-get_best_action(B, [A|OTHERS], BSCORE, BACTION) :- get_best_action(B, OTHERS, TEMPSCORE, TEMPACTION),
-                                                      apply_action_on_board(B, A, NEWB),
-                                                      board_score(NEWB, NEWB, ASCORE),
-                                                      compare_actions_score(TEMPSCORE, TEMPACTION, ASCORE, A, BSCORE, BACTION).
+get_best_action(Board, [Action|[]], Score, Action) :- !,
+                                                      apply_action_on_board(Board, Action, NewBoard),
+                                                      board_score(NewBoard, NewBoard, Score).
+get_best_action(Board, [Action|Others], BestScore, BestAct):- get_best_action(Board, Others, TempScore, TempAct),
+                                                            apply_action_on_board(Board, Action, NewBoard),
+                                                            board_score(NewBoard, NewBoard, ActScore),
+                                                            compare_actions_score(TempScore, TempAct, ActScore, Action, BestScore, BestAct).
 
 % compare_actions_score(Score1, Action1, Score2, Action2, BestScore, BestAction) --- Renvoie la meilleure action entre les deux (Si scores egaux => celle qui a le moins de mouvements)
-compare_actions_score(S1, A1, S2, _, S1, A1) :- S1 > S2, !.
-compare_actions_score(S1, _, S2, A2, S2, A2) :- S1 < S2, !.
-compare_actions_score(S1, A1, _, A2, S1, A1) :- list_size(A1, SIZE1), list_size(A2, SIZE2), SIZE1 < SIZE2, !.
-compare_actions_score(_, _, S2, A2, S2, A2).
+compare_actions_score(Score1, Action1, Score2, _, Score1, Action1) :- Score1 > Score2, !.
+compare_actions_score(Score1, _, Score2, Action2, Score2, Action2) :- Score1 < Score2, !.
+compare_actions_score(Score1, Action1, _, Action2, Score1, Action1) :- list_size(Action1, SizeAct1), list_size(Action2, SizeAct2), SizeAct1 < SizeAct2, !.
+compare_actions_score(_, _, Score2, Action2, Score2, Action2).
 
 
 
@@ -360,17 +362,18 @@ compare_actions_score(_, _, S2, A2, S2, A2).
 %  -- Piece freeze : -1
 %  -- Distance Lapin : -DISTANCE (si D > 3)
 
+%  -- strategie elephant (POS < 2) => -3
 %  -- Enable to push / pull to delete
 %  -- Gagnant next time
 
 % board_score(Board, Pieces, Score) --- Calcul un score correspondant a l'etat du plateau (Score eleve = tres favorable, faible = plutot defavorable)
 board_score(_, [], 0).
-board_score(B, [P|OTHERS], SCORE):-calcul_score_win(P, SWIN),
-                        calcul_score_freeze(B, P, SFREEZE),
-                        calcul_score_piece_alive(B, P, SALIVE),
-                        calcul_score_distance_rabbit(P, SRABBIT),
-                        board_score(B, OTHERS, SOTHERS),
-                        SCORE is SWIN + SFREEZE + SALIVE + SRABBIT + SOTHERS.
+board_score(Board, [Piece|Others], Score):-calcul_score_win(Piece, SWin),
+                                          calcul_score_freeze(Board, Piece, SFreeze),
+                                          calcul_score_piece_alive(Board, Piece, SAlive),
+                                          calcul_score_distance_rabbit(Piece, SRabbit),
+                                          board_score(Board, Others, ScoreOthers),
+                                          Score is SWin + SFreeze + SAlive + SRabbit + ScoreOthers.
 
 
 % calcul_score_win(Piece, Score) --- Renvoie un certain score suivant si la piece permet de gagner ou non
@@ -381,22 +384,22 @@ calcul_score_win([7,_,rabbit, silver], 2000000):- !.
 calcul_score_win(_, 0).
 
 % calcul_score_freeze(Board, Piece, Score) --- Renvoie un certain score suivant si la pièce est freeze ou pas 
-calcul_score_freeze(_, P, 0):- enemy(P), !.
-calcul_score_freeze(B, P, 0):- movable_piece(B, P), !.
+calcul_score_freeze(_, Piece, 0):- enemy(Piece), !.
+calcul_score_freeze(Board, Piece, 0):- movable_piece(Board, Piece), !.
 calcul_score_freeze(_, _, -1).
 
 % calcul_score_piece_alive(Board, Piece, Score) --- Renvoie un certain score suivant si la piece tombe dans une trappe ou non
-calcul_score_piece_alive(B, P, 0):- \+dead_piece(B, P), !.
-calcul_score_piece_alive(_, P, 20):- enemy(P), !.
+calcul_score_piece_alive(Board, Piece, 0):- \+dead_piece(Board, Piece), !.
+calcul_score_piece_alive(_, Piece, 20):- enemy(Piece), !.
 calcul_score_piece_alive(_, _, -20).
 
 % calcul_score_distance_rabbit(Piece, Score) --- Renvoie un certain score prenant en compte la distance de la piece avec la ligne final (si lapin)
-calcul_score_distance_rabbit([_,_,TYPE,_], 0):- dif(TYPE, rabbit), !.
-calcul_score_distance_rabbit(P, 0):- enemy(P), !.
+calcul_score_distance_rabbit([_,_,Type,_], 0):- dif(Type, rabbit), !.
+calcul_score_distance_rabbit(Piece, 0):- enemy(Piece), !.
 calcul_score_distance_rabbit([X,_,_,gold], 0):- X =< 3, !.
 calcul_score_distance_rabbit([X,_,_,silver], 0):- X >= 4, !.
 calcul_score_distance_rabbit([X,_,_,gold], -X):- !.
-calcul_score_distance_rabbit([X,_,_,silver], -SCORE):- SCORE is 7 - X.
+calcul_score_distance_rabbit([X,_,_,silver], -Score):- Score is 7 - X.
 
 
 
