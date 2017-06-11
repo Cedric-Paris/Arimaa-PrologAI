@@ -17,7 +17,11 @@
 % default call
 %get_moves([[[1,5],[2,5]],[[0,0],[1,0]],[[0,1],[0,0]],[[0,0],[0,1]]], Gamestate, Board).
 %get_moves(ACTION, GS, B):- get_movable_allied_pieces(B, B, [ALLY|OTHER]), get_coord(ALLY, Coord), get_basic_move_actions_by_depth(B, Coord, 4, [ACTION|Q]).
-get_moves(ACTION, GS, Board):- get_movable_allied_pieces(Board, Board, ALLIES), get_all_actions(Board, ALLIES, 4, ACTS), get_best_action(Board, ACTS, _, ACTION).
+%get_moves(ACTION, GS, Board):- get_movable_allied_pieces(Board, Board, ALLIES), get_all_actions(Board, ALLIES, 4, ACTS), get_best_action(Board, ACTS, _, ACTION).
+get_moves(Moves, GameState, Board) :- get_movable_allied_pieces(Board, Board, Allies),
+                                        get_all_actions(Board, Allies, 4, Actions),
+                                        get_best_action(Board, Actions, _, BestAction),
+                                        build_moves(Board, BestAction, 0, Moves).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% FONCTIONS OUTILS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -26,7 +30,7 @@ get_moves(ACTION, GS, Board):- get_movable_allied_pieces(Board, Board, ALLIES), 
 debug_log([]):-write('-END-').
 debug_log([T|Q]):-writeln(T), debug_log(Q).
 debug_log_slow([]):-write('-END-').
-debug_log_slow([T|Q]):-writeln(T), sleep(0.2), debug_log(Q).
+debug_log_slow([T|Q]):-writeln(T), sleep(0.2), debug_log_slow(Q).
 
 % list(E) --- vrai si E est une liste
 list([]).
@@ -183,23 +187,24 @@ get_movable_allied_pieces(Board, [T|Q], [T|Result]):- ally(T),
 get_movable_allied_pieces(Board, [_|Q], Result) :- get_movable_allied_pieces(Board, Q, Result), !.
 
 % movable_piece(Board, Piece) --- Indique si une piece est deplacable
+% ------La piece peut pousser
+movable_piece(Board, Piece):- push_action(Board, Piece, _), !.
 % ------Cas entouré de pieces
 movable_piece(Board, Piece):- get_coord(Piece, Coord),
                               get_empty_neigh(Board, Coord, ListNeigh),
                               list_size(ListNeigh, Size),
                               Size =:= 0, !, fail.
-movable_piece(Board, Piece):- get_type(Piece,rabbit),      %Le lapin ne peut qu'avancer (silver)
-                              get_piece_side(Piece, silver),
-                              get_coord(Piece, [X,_]),
-                              get_empty_neigh(Board, _, [[NeighX,_]]),
-                              NeighX is X - 1,
-                              !, fail.
-movable_piece(Board, Piece):- get_type(Piece, rabbit),      %Le lapin ne peut qu'avancer (gold)
-                              get_piece_side(Piece, gold),
-                              get_coord(Piece, [X,_]),
-                              get_empty_neigh(Board, _, [[NeighX,_]]),
-                              NeighX is X + 1,
-                              !, fail.
+% ------Deplacement Lapin (pas en arriere)
+movable_piece(Board, [X,Y,rabbit,silver]):-get_empty_neigh(Board, [X,Y], EmptyNeigh),
+                                          list_size(EmptyNeigh, 1),
+                                          BadX is X - 1,
+                                          member([BadX,Y], EmptyNeigh),
+                                          !, fail.
+movable_piece(Board, [X,Y,rabbit,gold]):- get_empty_neigh(Board, [X,Y], EmptyNeigh),
+                                          list_size(EmptyNeigh, 1),
+                                          BadX is X + 1,
+                                          member([BadX,Y], EmptyNeigh),
+                                          !, fail.
 % ------Cas ou il y a un allie autour
 movable_piece(Board, Piece):- enemy(Piece),
                               get_coord(Piece, Coord),
@@ -215,10 +220,41 @@ movable_piece(Board, Piece):- get_coord(Piece, Coord),
 
 
 
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% FONCTIONS DE L'IA %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%% Action pattern : [SCORE, DEPTH, [ [ACTION1] [ACTION2] ]]
+
+% build_moves(Board, Action, CoupRestant, ListActionsResultat) --- Construit la liste des actions de l'IA
+build_moves(Board, [Type, Init, End], Steps, BuiltActions):- \+list(Type),
+                                                            apply_action_on_board(Board, [Type, Init, End], NewBoard),
+                                                            get_movable_allied_pieces(NewBoard, NewBoard, Allies),
+                                                            Depth is 2 - Steps,
+                                                            Depth > 0,
+                                                            get_all_actions(NewBoard, Allies, Depth, Actions),
+                                                            get_best_action(NewBoard, Actions, NewScore, BestAction),
+                                                            board_score(NewBoard, NewBoard, LastScore),
+                                                            NewScore >= LastScore,
+                                                            !,
+                                                            NextSteps is 2 + Steps,
+                                                            build_moves(NewBoard, BestAction, NextSteps, NewAction),
+                                                            concat([Init, End], NewAction, BuiltActions).
+build_moves(_, [Type, Init, End], _, [Init, End]):- \+list(Type), !.
+build_moves(Board, [FirstPart|NextPart], Steps, BuiltActions):-list(FirstPart),
+                                                            apply_action_on_board(Board, [FirstPart|NextPart], NewBoard),
+                                                            get_movable_allied_pieces(NewBoard, NewBoard, Allies),
+                                                            list_size([FirstPart|NextPart], ActionSteps),
+                                                            Depth is 4 - Steps - ActionSteps,
+                                                            Depth > 0,
+                                                            get_all_actions(NewBoard, Allies, Depth, Actions),
+                                                            get_best_action(NewBoard, Actions, NewScore, BestAction),
+                                                            board_score(NewBoard, NewBoard, LastScore),
+                                                            NewScore >= LastScore,
+                                                            !,
+                                                            NextSteps is ActionSteps + Steps,
+                                                            build_moves(NewBoard, BestAction, NextSteps, NewAction),
+                                                            concat([FirstPart|NextPart], NewAction, BuiltActions).
+build_moves(_, Action, _, Action).
+
+
 
 % get_all_actions(Board, Pieces, Depth, Actions) --- Renvoie la liste de toute les actions possibles (Depth = nombre de deplacement max par action)
 get_all_actions(Board, [Piece|[]], Depth, Actions) :- Depth >= 2,
@@ -308,8 +344,15 @@ get_push_actions(_, _, []).
 
 % push_action(Board, Piece, Result) --- Cherche une action "pousser"
 push_action(_, [_,_,rabbit,_], _):-fail.
-push_action(Board, Piece, [push, [EnemCoord,EmptyCoord],[Coord, EnemCoord]]):-movable_piece(Board, Piece),
-                                                                              get_coord(Piece, Coord),
+push_action(Board, Piece, _):-get_coord(Piece, Coord),
+                              \+ally_around(Board, Coord),
+                              get_enemies(Board, Enemies), 
+                              get_neigh(Coord, Neigh),
+                              get_pieces_by_pos(Enemies, Neigh, NeighList),
+                              \+stronger_or_eq_than_all(Piece, NeighList),
+                              !,
+                              fail.
+push_action(Board, Piece, [push, [EnemCoord,EmptyCoord],[Coord, EnemCoord]]):-get_coord(Piece, Coord),
                                                                               get_neigh(Coord, Neigh),
                                                                               get_pieces_by_pos(Board, Neigh, NeighList),
                                                                               member(Enem, NeighList),
@@ -318,6 +361,8 @@ push_action(Board, Piece, [push, [EnemCoord,EmptyCoord],[Coord, EnemCoord]]):-mo
                                                                               get_coord(Enem, EnemCoord),
                                                                               get_empty_neigh(Board, EnemCoord, EmptyNeigh),
                                                                               member(EmptyCoord, EmptyNeigh).
+
+
 
 % move_piece(Board, InitPos, NewPos, NewBoard) --- Deplace la piece a la position InitPos a la position NewPos
 move_piece([[X,Y,Type,Side]|Q], [X,Y], [NewX,NewY], [[NewX,NewY,Type,Side]|Q]):-!.
@@ -372,8 +417,9 @@ board_score(Board, [Piece|Others], Score):-calcul_score_win(Piece, SWin),
                                           calcul_score_freeze(Board, Piece, SFreeze),
                                           calcul_score_piece_alive(Board, Piece, SAlive),
                                           calcul_score_distance_rabbit(Piece, SRabbit),
+                                          calcul_score_elephant(Piece, SElephant),
                                           board_score(Board, Others, ScoreOthers),
-                                          Score is SWin + SFreeze + SAlive + SRabbit + ScoreOthers.
+                                          Score is SWin + SFreeze + SAlive + SRabbit + ScoreOthers + SElephant.
 
 
 % calcul_score_win(Piece, Score) --- Renvoie un certain score suivant si la piece permet de gagner ou non
@@ -390,8 +436,8 @@ calcul_score_freeze(_, _, -1).
 
 % calcul_score_piece_alive(Board, Piece, Score) --- Renvoie un certain score suivant si la piece tombe dans une trappe ou non
 calcul_score_piece_alive(Board, Piece, 0):- \+dead_piece(Board, Piece), !.
-calcul_score_piece_alive(_, Piece, 20):- enemy(Piece), !.
-calcul_score_piece_alive(_, _, -20).
+calcul_score_piece_alive(_, Piece, 30):- enemy(Piece), !.
+calcul_score_piece_alive(_, _, -30).
 
 % calcul_score_distance_rabbit(Piece, Score) --- Renvoie un certain score prenant en compte la distance de la piece avec la ligne final (si lapin)
 calcul_score_distance_rabbit([_,_,Type,_], 0):- dif(Type, rabbit), !.
@@ -401,12 +447,17 @@ calcul_score_distance_rabbit([X,_,_,silver], 0):- X >= 4, !.
 calcul_score_distance_rabbit([X,_,_,gold], -X):- !.
 calcul_score_distance_rabbit([X,_,_,silver], -Score):- Score is 7 - X.
 
+% calcul_score_elephant(Piece, Score) --- Renvoie un certain score prenant en compte la position de l'elephant sur le plateau
+calcul_score_elephant([X, _, elephant, silver], -7):- ally([0, 0, type, silver]), X < 3, !.
+calcul_score_elephant([X, _, elephant, gold], -7):- ally([0, 0, type, gold]), X > 4, !.
+calcul_score_elephant(_, 0).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS 
 
 looping(B,ALLIES):-get_all_actions(B,ALLIES,4,R), debug_log_slow(R).
-
+%looping2(B):-get_allies(B, ALLIES), get_all_actions(B,ALLIES,4,R), debug_log(R).
+looping2(B):-get_all_actions(B,[[1,0,rabbit,silver]],4,R), debug_log_slow(R).
 /*
 bot:get_basic_move_actions_by_depth([[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],[1,0],4,R), bot:debug_log(R).
 
@@ -414,6 +465,7 @@ bot:get_basic_move_actions_by_depth([[0,0,rabbit,silver],[0,1,rabbit,silver],[0,
 bot:get_movable_allied_pieces([[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],[[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],R), bot:looping([[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],R).
 
 bot:get_movable_allied_pieces([[0,0,cat,silver],[0,1,elephant,gold],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,horse,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,elephant,silver],[1,1,dog,gold],[1,2,camel,silver],[1,3,rabbit,silver],[1,4,rabbit,silver],[1,5,horse,gold],[1,6,dog,silver],[1,7,dog,silver],[2,0,rabbit,silver],[2,1,cat,gold],[2,2,rabbit,silver],[2,3,rabbit,gold],[2,4,rabbit,gold],[2,6,rabbit,gold],[2,7,camel,gold],[3,0,rabbit,silver],[4,3,rabbit,gold],[4,7,horse,gold],[5,4,rabbit,gold],[6,0,rabbit,gold],[7,0,cat,gold],[7,3,dog,gold],[7,4,rabbit,gold],[7,5,rabbit,gold]],[[0,0,cat,silver],[0,1,elephant,gold],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,horse,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,elephant,silver],[1,1,dog,gold],[1,2,camel,silver],[1,3,rabbit,silver],[1,4,rabbit,silver],[1,5,horse,gold],[1,6,dog,silver],[1,7,dog,silver],[2,0,rabbit,silver],[2,1,cat,gold],[2,2,rabbit,silver],[2,3,rabbit,gold],[2,4,rabbit,gold],[2,6,rabbit,gold],[2,7,camel,gold],[3,0,rabbit,silver],[4,3,rabbit,gold],[4,7,horse,gold],[5,4,rabbit,gold],[6,0,rabbit,gold],[7,0,cat,gold],[7,3,dog,gold],[7,4,rabbit,gold],[7,5,rabbit,gold]],R), bot:looping([[0,0,cat,silver],[0,1,elephant,gold],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,horse,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,elephant,silver],[1,1,dog,gold],[1,2,camel,silver],[1,3,rabbit,silver],[1,4,rabbit,silver],[1,5,horse,gold],[1,6,dog,silver],[1,7,dog,silver],[2,0,rabbit,silver],[2,1,cat,gold],[2,2,rabbit,silver],[2,3,rabbit,gold],[2,4,rabbit,gold],[2,6,rabbit,gold],[2,7,camel,gold],[3,0,rabbit,silver],[4,3,rabbit,gold],[4,7,horse,gold],[5,4,rabbit,gold],[6,0,rabbit,gold],[7,0,cat,gold],[7,3,dog,gold],[7,4,rabbit,gold],[7,5,rabbit,gold]],R).
+
 loopin
 
 */
