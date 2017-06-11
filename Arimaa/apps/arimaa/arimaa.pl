@@ -223,7 +223,7 @@ movable_piece(Board, Piece):- get_coord(Piece, Coord),
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% FONCTIONS DE L'IA %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-% build_moves(Board, Action, CoupRestant, ListActionsResultat) --- Construit la liste des actions de l'IA
+% build_moves(Board, Action, CoupRestant, ListActionsResultat) --- Construit la liste des actions de l'IA (supprime l'indication push/pull au passage)
 build_moves(Board, [Type, Init, End], Steps, BuiltActions):- \+list(Type),
                                                             apply_action_on_board(Board, [Type, Init, End], NewBoard),
                                                             get_movable_allied_pieces(NewBoard, NewBoard, Allies),
@@ -418,8 +418,9 @@ board_score(Board, [Piece|Others], Score):-calcul_score_win(Piece, SWin),
                                           calcul_score_piece_alive(Board, Piece, SAlive),
                                           calcul_score_distance_rabbit(Piece, SRabbit),
                                           calcul_score_elephant(Piece, SElephant),
+                                          calcul_push_bonus(Board, Piece, SPush),
                                           board_score(Board, Others, ScoreOthers),
-                                          Score is SWin + SFreeze + SAlive + SRabbit + ScoreOthers + SElephant.
+                                          Score is SWin + SFreeze + SAlive + SRabbit + ScoreOthers + SElephant + SPush.
 
 
 % calcul_score_win(Piece, Score) --- Renvoie un certain score suivant si la piece permet de gagner ou non
@@ -436,8 +437,8 @@ calcul_score_freeze(_, _, -1).
 
 % calcul_score_piece_alive(Board, Piece, Score) --- Renvoie un certain score suivant si la piece tombe dans une trappe ou non
 calcul_score_piece_alive(Board, Piece, 0):- \+dead_piece(Board, Piece), !.
-calcul_score_piece_alive(_, Piece, 30):- enemy(Piece), !.
-calcul_score_piece_alive(_, _, -30).
+calcul_score_piece_alive(_, Piece, 50):- enemy(Piece), !.
+calcul_score_piece_alive(_, _, -50).
 
 % calcul_score_distance_rabbit(Piece, Score) --- Renvoie un certain score prenant en compte la distance de la piece avec la ligne final (si lapin)
 calcul_score_distance_rabbit([_,_,Type,_], 0):- dif(Type, rabbit), !.
@@ -452,12 +453,15 @@ calcul_score_elephant([X, _, elephant, silver], -7):- ally([0, 0, type, silver])
 calcul_score_elephant([X, _, elephant, gold], -7):- ally([0, 0, type, gold]), X > 4, !.
 calcul_score_elephant(_, 0).
 
+% calcul_push_bonus(Board, Piece, Score) --- Renvoie un certain score suivant si la piece peut pousser un adversaire depuis sa position actuelle
+calcul_push_bonus(Board, Piece, 20):- ally(Piece), trap(TrapCoord), push_action(Board, Piece, [push, [_, TrapCoord],[_, _]]), !.
+calcul_push_bonus(_, _, 0).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS 
 
 looping(B,ALLIES):-get_all_actions(B,ALLIES,4,R), debug_log_slow(R).
 %looping2(B):-get_allies(B, ALLIES), get_all_actions(B,ALLIES,4,R), debug_log(R).
-looping2(B):-get_all_actions(B,[[1,0,rabbit,silver]],4,R), debug_log_slow(R).
+looping2(B):-get_all_actions(B,[[3,1,elephant,silver]],4,R), debug_log_slow(R).
 /*
 bot:get_basic_move_actions_by_depth([[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],[1,0],4,R), bot:debug_log(R).
 
