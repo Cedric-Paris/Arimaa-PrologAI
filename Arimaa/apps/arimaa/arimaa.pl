@@ -1,7 +1,16 @@
 :- module(bot,
       [  get_moves/3
       ]).
-	
+
+/*************************************************************************
+ *                     Arimaa prolog IA - Heuristic                      *
+ * Base repository forked from https://github.com/SWI-Prolog/pengines/   *
+ *                         and https://github.com/rlacazel/Prolog-Arimaa *
+ *                                                                       *
+ * Cedric PARIS                   UTC - IA02                    06/2017  *
+ *************************************************************************/
+
+
 % A few comments but all is explained in README of github
 
 % get_moves signature
@@ -15,9 +24,6 @@
 % get_moves(Moves, [silver, []], [[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]]).
 
 % default call
-%get_moves([[[1,5],[2,5]],[[0,0],[1,0]],[[0,1],[0,0]],[[0,0],[0,1]]], Gamestate, Board).
-%get_moves(ACTION, GS, B):- get_movable_allied_pieces(B, B, [ALLY|OTHER]), get_coord(ALLY, Coord), get_basic_move_actions_by_depth(B, Coord, 4, [ACTION|Q]).
-%get_moves(ACTION, GS, Board):- get_movable_allied_pieces(Board, Board, ALLIES), get_all_actions(Board, ALLIES, 4, ACTS), get_best_action(Board, ACTS, _, ACTION).
 get_moves(Moves, GameState, Board) :- get_movable_allied_pieces(Board, Board, Allies),
                                         get_all_actions(Board, Allies, 4, Actions),
                                         get_best_action(Board, Actions, _, BestAction),
@@ -75,7 +81,7 @@ get_type([_,_,Type,_], Type).
 get_piece_side([_,_,_,Side], Side).
 
 % get_piece_by_pos(Board, Coord, ResultPiece) --- Trouve la piece correspondant a la position Coord.
-get_piece_by_pos([],_,_):-fail.
+get_piece_by_pos([],_,_):-!, fail.
 get_piece_by_pos([Piece|_], [X,Y], Piece):-get_coord(Piece, [X,Y]),!.
 get_piece_by_pos([_|Q], [X,Y], Piece):-get_piece_by_pos(Q, [X,Y], Piece).
 
@@ -326,7 +332,7 @@ get_pull_actions(Board, Piece, Actions):-bagof(PullAct, pull_action(Board, Piece
 get_pull_actions(_, _, []).
 
 % pull_action(Board, Piece, Result) --- Cherche une action "tirer"
-pull_action(_, [_,_,rabbit,_], _):-fail.
+pull_action(_, [_,_,rabbit,_], _):-!, fail.
 pull_action(Board, Piece, [pull, [Coord,EmptyCoord],[EnemCoord, Coord]]):-movable_piece(Board, Piece),
                                                                         get_coord(Piece, Coord),
                                                                         get_empty_neigh(Board, Coord, EmptyNeigh),
@@ -343,7 +349,7 @@ get_push_actions(Board, Piece, Actions):-bagof(PushAct, push_action(Board, Piece
 get_push_actions(_, _, []).
 
 % push_action(Board, Piece, Result) --- Cherche une action "pousser"
-push_action(_, [_,_,rabbit,_], _):-fail.
+push_action(_, [_,_,rabbit,_], _):-!, fail.
 push_action(Board, Piece, _):-get_coord(Piece, Coord),
                               \+ally_around(Board, Coord),
                               get_enemies(Board, Enemies), 
@@ -402,14 +408,16 @@ compare_actions_score(_, _, Score2, Action2, Score2, Action2).
 %--->SCORE %%%%%%%% HEURISTIQUES POUR DECISION DE L'IA   ---http://www.techno-science.net/?onglet=glossaire&definition=6418---
 % Poids associes : 
 %  -- Gagnant : INFINI
-%  -- Piece sur le plateau : 20
-%  -- Piece en danger (peu etre push) : -10
+%  -- Piece ennemie detruite : 50
 %  -- Piece freeze : -1
 %  -- Distance Lapin : -DISTANCE (si D > 3)
-
 %  -- strategie elephant (POS < 2) => -3
 %  -- Enable to push / pull to delete
+% NON MIS EN PLACE :
 %  -- Gagnant next time
+%  -- Piece en danger (peu etre push) : -10
+
+
 
 % board_score(Board, Pieces, Score) --- Calcul un score correspondant a l'etat du plateau (Score eleve = tres favorable, faible = plutot defavorable)
 board_score(_, [], 0).
@@ -419,8 +427,9 @@ board_score(Board, [Piece|Others], Score):-calcul_score_win(Piece, SWin),
                                           calcul_score_distance_rabbit(Piece, SRabbit),
                                           calcul_score_elephant(Piece, SElephant),
                                           calcul_push_bonus(Board, Piece, SPush),
+                                          calcul_pull_bonus(Board, Piece, SPull),
                                           board_score(Board, Others, ScoreOthers),
-                                          Score is SWin + SFreeze + SAlive + SRabbit + ScoreOthers + SElephant + SPush.
+                                          Score is SWin + SFreeze + SAlive + SRabbit + ScoreOthers + SElephant + SPush + SPull.
 
 
 % calcul_score_win(Piece, Score) --- Renvoie un certain score suivant si la piece permet de gagner ou non
@@ -457,11 +466,15 @@ calcul_score_elephant(_, 0).
 calcul_push_bonus(Board, Piece, 20):- ally(Piece), trap(TrapCoord), push_action(Board, Piece, [push, [_, TrapCoord],[_, _]]), !.
 calcul_push_bonus(_, _, 0).
 
+% calcul_pull_bonus(Board, Piece, Score) --- Renvoie un certain score suivant si la piece peut tirer un adversaire depuis sa position actuelle
+calcul_pull_bonus(Board, Piece, 20):- ally(Piece), trap(TrapCoord), pull_action(Board, Piece, [push, [_, _],[_, TrapCoord]]), !.
+calcul_pull_bonus(_, _, 0).
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS 
 
 looping(B,ALLIES):-get_all_actions(B,ALLIES,4,R), debug_log_slow(R).
 %looping2(B):-get_allies(B, ALLIES), get_all_actions(B,ALLIES,4,R), debug_log(R).
-looping2(B):-get_all_actions(B,[[3,1,elephant,silver]],4,R), debug_log_slow(R).
+looping2(B):-get_all_actions(B,[[5,2,rabbit,silver]],4,R), debug_log_slow(R).
 /*
 bot:get_basic_move_actions_by_depth([[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],[1,0],4,R), bot:debug_log(R).
 
@@ -470,21 +483,4 @@ bot:get_movable_allied_pieces([[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,hors
 
 bot:get_movable_allied_pieces([[0,0,cat,silver],[0,1,elephant,gold],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,horse,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,elephant,silver],[1,1,dog,gold],[1,2,camel,silver],[1,3,rabbit,silver],[1,4,rabbit,silver],[1,5,horse,gold],[1,6,dog,silver],[1,7,dog,silver],[2,0,rabbit,silver],[2,1,cat,gold],[2,2,rabbit,silver],[2,3,rabbit,gold],[2,4,rabbit,gold],[2,6,rabbit,gold],[2,7,camel,gold],[3,0,rabbit,silver],[4,3,rabbit,gold],[4,7,horse,gold],[5,4,rabbit,gold],[6,0,rabbit,gold],[7,0,cat,gold],[7,3,dog,gold],[7,4,rabbit,gold],[7,5,rabbit,gold]],[[0,0,cat,silver],[0,1,elephant,gold],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,horse,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,elephant,silver],[1,1,dog,gold],[1,2,camel,silver],[1,3,rabbit,silver],[1,4,rabbit,silver],[1,5,horse,gold],[1,6,dog,silver],[1,7,dog,silver],[2,0,rabbit,silver],[2,1,cat,gold],[2,2,rabbit,silver],[2,3,rabbit,gold],[2,4,rabbit,gold],[2,6,rabbit,gold],[2,7,camel,gold],[3,0,rabbit,silver],[4,3,rabbit,gold],[4,7,horse,gold],[5,4,rabbit,gold],[6,0,rabbit,gold],[7,0,cat,gold],[7,3,dog,gold],[7,4,rabbit,gold],[7,5,rabbit,gold]],R), bot:looping([[0,0,cat,silver],[0,1,elephant,gold],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,horse,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,elephant,silver],[1,1,dog,gold],[1,2,camel,silver],[1,3,rabbit,silver],[1,4,rabbit,silver],[1,5,horse,gold],[1,6,dog,silver],[1,7,dog,silver],[2,0,rabbit,silver],[2,1,cat,gold],[2,2,rabbit,silver],[2,3,rabbit,gold],[2,4,rabbit,gold],[2,6,rabbit,gold],[2,7,camel,gold],[3,0,rabbit,silver],[4,3,rabbit,gold],[4,7,horse,gold],[5,4,rabbit,gold],[6,0,rabbit,gold],[7,0,cat,gold],[7,3,dog,gold],[7,4,rabbit,gold],[7,5,rabbit,gold]],R).
 
-loopin
-
 */
-
-
-/*******
-*  IA  *
-*******/
-
-% Si mouvement gagnant -> jouer.
-% Si tuer enemie -> tuer.
-% Poser elephant a cote d'un piege
-% Reflexion par action (calcul enemie impossible)
-      % Generer action [nbAction, [MOVE 1], [MOVE 2]]
-      % Calculer score [score [nbAction, [MOVE 1], [MOVE 2]]]
-      % Jouer Meilleur ORDER BY SCORE
-      % Boucler si reste des coup
-% get_action_value() // Calcul score -> GhostInTheCell
