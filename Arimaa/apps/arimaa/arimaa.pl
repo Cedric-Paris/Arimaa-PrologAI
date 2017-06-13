@@ -446,8 +446,8 @@ calcul_score_freeze(_, _, -1).
 
 % calcul_score_piece_alive(Board, Piece, Score) --- Renvoie un certain score suivant si la piece tombe dans une trappe ou non
 calcul_score_piece_alive(Board, Piece, 0):- \+dead_piece(Board, Piece), !.
-calcul_score_piece_alive(_, Piece, 81):- enemy(Piece), !.
-calcul_score_piece_alive(_, _, -81).
+calcul_score_piece_alive(_, Piece, 250):- enemy(Piece), !.
+calcul_score_piece_alive(_, _, -250).
 
 % calcul_score_distance_rabbit(Piece, Score) --- Renvoie un certain score prenant en compte la distance de la piece avec la ligne final (si lapin)
 calcul_score_distance_rabbit([_,_,Type,_], 0):- dif(Type, rabbit), !.
@@ -463,13 +463,13 @@ calcul_score_elephant([X, _, elephant, gold], -7):- ally([0, 0, type, gold]), X 
 calcul_score_elephant(_, 0).
 
 % calcul_push_bonus(Board, Piece, Score) --- Renvoie un certain score suivant si la piece peut pousser un adversaire depuis sa position actuelle
-calcul_push_bonus(Board, Piece, 30):- ally(Piece), get_enemies(Board, Enemies), trap(TrapCoord), get_neigh(TrapCoord, Neigh),
+calcul_push_bonus(Board, Piece, 50):- ally(Piece), get_enemies(Board, Enemies), trap(TrapCoord), get_neigh(TrapCoord, Neigh),
                                       get_pieces_by_pos(Enemies, Neigh, List), list_size(List, 1), push_action(Board, Piece, [push, [_, TrapCoord],[_, _]]), !.
 calcul_push_bonus(Board, Piece, 20):- ally(Piece), trap(TrapCoord), push_action(Board, Piece, [push, [_, TrapCoord],[_, _]]), !.
 calcul_push_bonus(_, _, 0).
 
 % calcul_pull_bonus(Board, Piece, Score) --- Renvoie un certain score suivant si la piece peut tirer un adversaire depuis sa position actuelle
-calcul_pull_bonus(Board, Piece, 30):- ally(Piece), get_enemies(Board, Enemies), trap(TrapCoord), get_neigh(TrapCoord, Neigh),
+calcul_pull_bonus(Board, Piece, 50):- ally(Piece), get_enemies(Board, Enemies), trap(TrapCoord), get_neigh(TrapCoord, Neigh),
                                       get_pieces_by_pos(Enemies, Neigh, List), list_size(List, 1), pull_action(Board, Piece, [push, [_, _],[_, TrapCoord]]), !.
 calcul_pull_bonus(Board, Piece, 20):- ally(Piece), trap(TrapCoord), pull_action(Board, Piece, [push, [_, _],[_, TrapCoord]]), !.
 calcul_pull_bonus(_, _, 0).
