@@ -35,8 +35,6 @@ get_moves(Moves, GameState, Board) :- get_movable_allied_pieces(Board, Board, Al
 % Debug
 debug_log([]):-write('-END-').
 debug_log([T|Q]):-writeln(T), debug_log(Q).
-debug_log_slow([]):-write('-END-').
-debug_log_slow([T|Q]):-writeln(T), sleep(0.2), debug_log_slow(Q).
 
 % list(E) --- vrai si E est une liste
 list([]).
@@ -473,20 +471,3 @@ calcul_pull_bonus(Board, Piece, 50):- ally(Piece), get_enemies(Board, Enemies), 
                                       get_pieces_by_pos(Enemies, Neigh, List), list_size(List, 1), pull_action(Board, Piece, [push, [_, _],[_, TrapCoord]]), !.
 calcul_pull_bonus(Board, Piece, 20):- ally(Piece), trap(TrapCoord), pull_action(Board, Piece, [push, [_, _],[_, TrapCoord]]), !.
 calcul_pull_bonus(_, _, 0).
-
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TESTS 
-
-looping(B,ALLIES):-get_all_actions(B,ALLIES,4,R), debug_log_slow(R).
-%looping2(B):-get_allies(B, ALLIES), get_all_actions(B,ALLIES,4,R), debug_log(R).
-looping2(B):-get_all_actions(B,[[6,4,elephant,silver]],4,R), debug_log_slow(R).
-/*
-bot:get_basic_move_actions_by_depth([[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],[1,0],4,R), bot:debug_log(R).
-
-%LISTER TOUTE LES ACTIONS
-bot:get_movable_allied_pieces([[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],[[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],R), bot:looping([[0,0,rabbit,silver],[0,1,rabbit,silver],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,elephant,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,rabbit,silver],[1,0,camel,silver],[1,1,cat,silver],[1,2,rabbit,silver],[1,3,dog,silver],[1,4,rabbit,silver],[1,5,horse,silver],[1,6,dog,silver],[1,7,cat,silver],[2,7,rabbit,gold],[6,0,cat,gold],[6,1,horse,gold],[6,2,camel,gold],[6,3,elephant,gold],[6,4,rabbit,gold],[6,5,dog,gold],[6,6,rabbit,gold],[7,0,rabbit,gold],[7,1,rabbit,gold],[7,2,rabbit,gold],[7,3,cat,gold],[7,4,dog,gold],[7,5,rabbit,gold],[7,6,horse,gold],[7,7,rabbit,gold]],R).
-
-bot:get_movable_allied_pieces([[0,0,cat,silver],[0,1,elephant,gold],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,horse,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,elephant,silver],[1,1,dog,gold],[1,2,camel,silver],[1,3,rabbit,silver],[1,4,rabbit,silver],[1,5,horse,gold],[1,6,dog,silver],[1,7,dog,silver],[2,0,rabbit,silver],[2,1,cat,gold],[2,2,rabbit,silver],[2,3,rabbit,gold],[2,4,rabbit,gold],[2,6,rabbit,gold],[2,7,camel,gold],[3,0,rabbit,silver],[4,3,rabbit,gold],[4,7,horse,gold],[5,4,rabbit,gold],[6,0,rabbit,gold],[7,0,cat,gold],[7,3,dog,gold],[7,4,rabbit,gold],[7,5,rabbit,gold]],[[0,0,cat,silver],[0,1,elephant,gold],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,horse,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,elephant,silver],[1,1,dog,gold],[1,2,camel,silver],[1,3,rabbit,silver],[1,4,rabbit,silver],[1,5,horse,gold],[1,6,dog,silver],[1,7,dog,silver],[2,0,rabbit,silver],[2,1,cat,gold],[2,2,rabbit,silver],[2,3,rabbit,gold],[2,4,rabbit,gold],[2,6,rabbit,gold],[2,7,camel,gold],[3,0,rabbit,silver],[4,3,rabbit,gold],[4,7,horse,gold],[5,4,rabbit,gold],[6,0,rabbit,gold],[7,0,cat,gold],[7,3,dog,gold],[7,4,rabbit,gold],[7,5,rabbit,gold]],R), bot:looping([[0,0,cat,silver],[0,1,elephant,gold],[0,2,horse,silver],[0,3,rabbit,silver],[0,4,horse,silver],[0,5,rabbit,silver],[0,6,rabbit,silver],[0,7,elephant,silver],[1,1,dog,gold],[1,2,camel,silver],[1,3,rabbit,silver],[1,4,rabbit,silver],[1,5,horse,gold],[1,6,dog,silver],[1,7,dog,silver],[2,0,rabbit,silver],[2,1,cat,gold],[2,2,rabbit,silver],[2,3,rabbit,gold],[2,4,rabbit,gold],[2,6,rabbit,gold],[2,7,camel,gold],[3,0,rabbit,silver],[4,3,rabbit,gold],[4,7,horse,gold],[5,4,rabbit,gold],[6,0,rabbit,gold],[7,0,cat,gold],[7,3,dog,gold],[7,4,rabbit,gold],[7,5,rabbit,gold]],R).
-
-*/
